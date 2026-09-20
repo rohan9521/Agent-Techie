@@ -1,0 +1,40 @@
+services:
+  agent-techie:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: INFO
+      DATABASE_URL: postgresql://agent_techie:agent_techie@postgres:5432/agent_techie
+      REDIS_URL: redis://redis:6379/0
+      PERSISTENCE_BACKEND: memory
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: agent_techie
+      POSTGRES_PASSWORD: agent_techie
+      POSTGRES_DB: agent_techie
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent_techie -d agent_techie"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:

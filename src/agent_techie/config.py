@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     langsmith_endpoint: str = "https://api.smith.langchain.com"
     langsmith_api_key: str | None = None
     langsmith_project: str = "agent-techie"
+    workspace_root: str = "."
+    max_workflow_iterations: int = 20
+    github_token: str | None = None
+    persistence_backend: str = "memory"
+    database_url: str | None = None
+    redis_url: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -13,4 +13,5 @@ def test_workflow_executes_requirements_then_architect(sample_request) -> None:
     assert result["current_agent"] == "supervisor"
     assert result["requirements"]
     assert result["architecture"]
+    assert result["implementation_plan"] == result["architecture"].implementation_plan
     assert result["errors"] == []

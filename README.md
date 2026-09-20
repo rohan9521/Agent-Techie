@@ -1,86 +1,57 @@
 # Agent Techie
 
-Agent Techie is a modular foundation for a multi-agent software engineering platform.
-It accepts a repository task, turns it into structured requirements, proposes an
-architecture, and keeps orchestration separate from future coding, testing, review,
-and GitHub capabilities.
+Agent Techie is a dependency-safe multi-agent software engineering platform. It
+turns a repository task into validated requirements, architecture, an implementation
+proposal, deterministic test and review reports, and (optionally) a human approval
+step. The default runtime is local and network-free; external services are
+replaceable interfaces.
 
-## Phase 1
+## Included phases
 
-Phase 1 provides:
-
-- FastAPI application factory with `/health` and `POST /api/tasks`
-- Pydantic settings loaded from environment variables
-- Typed workflow state and validated requirements and architecture models
-- LangGraph supervisor routing with explicit conditional edges
-- Deterministic, network-free Requirements and Architect agents
-- Pytest, Ruff, and MyPy project configuration
-
-PostgreSQL, Redis, repository tools, live LLM providers, code modification, testing
-loops, GitHub pull requests, checkpointing, and human approval are intentionally
-reserved for later phases.
-
-## Architecture
-
-```mermaid
-flowchart TD
-		User[User request] --> API[FastAPI]
-		API --> Supervisor[Supervisor]
-		Supervisor --> Requirements[Requirements Agent]
-		Requirements --> Supervisor
-		Supervisor --> Architect[Architect Agent]
-		Architect --> Supervisor
-		Supervisor --> Done[Phase 1 complete]
-```
-
-The workflow uses the current LangGraph `StateGraph` API with `START`, `END`, and
-conditional routing. Agent output is validated with Pydantic before entering graph
-state. Agent implementations expose a small callable boundary so a LangChain model
-can be injected later without coupling provider code to orchestration.
+* **Agents:** requirements, architect, coder, tester, reviewer, and supervisor.
+* **Workflow:** LangGraph `StateGraph` with conditional routing, iteration limits,
+  implementation loops, resumable approval state, and validated Pydantic state.
+* **Tools:** workspace-root constrained reads/writes/listing and shell commands
+  restricted to an allowlist (no shell operators).
+* **API:** projects, asynchronous tasks, runs, run events, and approval endpoints.
+* **Persistence:** thread-safe in-memory storage by default, plus dependency-free
+  PostgreSQL/Redis-compatible adapter boundaries.
+* **GitHub:** safe in-memory/no-op service and optional standard-library HTTP adapter.
+* **Operations:** JSON logging, optional LangSmith-compatible tracing configuration,
+  Docker, Compose, and CI.
 
 ## Local setup
 
-Requires Python 3.11 or newer.
+Requires Python 3.11+:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e '.[dev]'
 cp .env.example .env
-```
-
-Run the API:
-
-```bash
 uvicorn agent_techie.main:app --reload
 ```
 
-Open the generated API documentation at `http://127.0.0.1:8000/docs`.
-
-Example request:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/tasks \
-	-H 'content-type: application/json' \
-	-d '{"repository":"octo/demo","task":"Add JWT authentication to the API"}'
-```
-
-The endpoint returns `202 Accepted` with a run ID. Phase 1 executes the deterministic
-workflow in a process-local background task; durable run storage and event streaming
-are later-phase concerns.
+`POST /api/tasks` returns `202` and a run ID. Set `requires_approval` to `true` to
+pause after review, then call `POST /api/runs/{run_id}/approval`. `GET
+/api/runs/{run_id}/events` returns structured lifecycle events. All default task
+execution is deterministic and does not call an LLM.
 
 ## Quality checks
 
 ```bash
-python -m pytest --cov=agent_techie --cov-report=term-missing
+pytest
 ruff check .
 ruff format --check .
 mypy src
 ```
 
-## Security and future design
+Docker:
 
-Secrets belong in environment variables and are excluded by `.gitignore`. Phase 2
-will add allowlisted filesystem and terminal tools. Later GitHub operations will use
-an abstract service boundary that can be backed by the GitHub API or MCP, create a
-feature branch, and require human approval before pull request creation.
+```bash
+docker compose up --build
+```
+
+Secrets belong in environment variables. Configure `LANGSMITH_TRACING` and
+`LANGSMITH_API_KEY` only when tracing is desired. Configure a production persistence
+adapter and a real GitHub service at the application composition boundary.

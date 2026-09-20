@@ -37,3 +37,16 @@ def test_supervisor_stops_after_architecture() -> None:
     )
 
     assert Supervisor().route(state).next_agent == "complete"
+
+
+def test_supervisor_fails_when_iteration_limit_is_reached() -> None:
+    state = WorkflowState(
+        user_request="Add search",
+        repository="octo/demo",
+        iteration=2,
+    )
+
+    decision = Supervisor(max_iterations=2).route(state)
+
+    assert decision.next_agent == "failed"
+    assert "Maximum workflow iterations" in decision.reason
