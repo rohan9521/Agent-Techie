@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#11131a" />
+    <title>Agent Techie</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #11131a;
+        color: #f1f2f6;
+        font-synthesis: none;
+        --muted: #9398aa;
+        --line: #292d3a;
+        --panel: #191c25;
+        --purple: #aa8cff;
+        --green: #7de0b1;
+        --red: #ff858c;
+      }
+
+      * { box-sizing: border-box; }
+      body { margin: 0; min-width: 320px; min-height: 100vh; }
+      button, input, textarea, select { font: inherit; }
+      button { cursor: pointer; }
+      .shell { min-height: 100vh; display: grid; grid-template-columns: 260px minmax(0, 1fr); }
+      aside { padding: 25px 17px; background: #151720; border-right: 1px solid var(--line); }
+      .brand { display: flex; align-items: center; gap: 11px; padding: 0 8px 25px; font-size: 16px; font-weight: 700; }
+      .brand-mark { display: grid; width: 34px; height: 34px; place-items: center; color: #14111d; background: var(--purple); border-radius: 11px; font-size: 19px; }
+      .eyebrow { margin: 22px 9px 10px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+      .project-list, .run-list { display: grid; gap: 5px; }
+      .list-button { width: 100%; overflow: hidden; padding: 10px 11px; color: #c7cad5; text-align: left; text-overflow: ellipsis; white-space: nowrap; background: transparent; border: 1px solid transparent; border-radius: 9px; }
+      .list-button:hover, .list-button.active { color: white; background: #222531; border-color: #303444; }
+      .sidebar-action { width: 100%; padding: 9px; color: var(--purple); text-align: left; background: transparent; border: 0; }
+      .sidebar-status { display: flex; align-items: center; gap: 8px; margin: 26px 8px 0; color: var(--muted); font-size: 12px; }
+      .dot { width: 8px; height: 8px; flex: none; background: var(--green); border-radius: 50%; box-shadow: 0 0 10px #7de0b155; }
+      main { width: min(1200px, 100%); margin: 0 auto; padding: 34px clamp(20px, 4vw, 58px) 60px; }
+      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 36px; }
+      h1 { margin: 0; font-size: clamp(23px, 3vw, 31px); letter-spacing: -.04em; }
+      .subtitle { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+      .health { display: flex; align-items: center; gap: 8px; padding: 8px 11px; color: #c4c7d1; background: var(--panel); border: 1px solid var(--line); border-radius: 20px; font-size: 12px; }
+      .health.error .dot { background: var(--red); box-shadow: none; }
+      .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; margin-bottom: 23px; }
+      .metric, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+      .metric { padding: 17px 19px; }
+      .metric-label { color: var(--muted); font-size: 12px; }
+      .metric-value { display: block; margin-top: 8px; font-size: 24px; font-weight: 650; }
+      .panel { padding: 22px; }
+      .panel + .panel { margin-top: 16px; }
+      .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 17px; }
+      h2 { margin: 0; font-size: 15px; font-weight: 650; }
+      .panel-hint { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+      .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .field { display: grid; gap: 7px; }
+      .field.full { grid-column: 1 / -1; }
+      label { color: #c8cad4; font-size: 12px; }
+      input, textarea, select { width: 100%; padding: 11px 12px; color: #f1f2f6; background: #12141b; border: 1px solid #333746; border-radius: 8px; outline: none; }
+      input:focus, textarea:focus, select:focus { border-color: var(--purple); box-shadow: 0 0 0 3px #aa8cff20; }
+      textarea { min-height: 91px; resize: vertical; }
+      input:disabled { color: var(--muted); }
+      .form-footer { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-top: 14px; }
+      .checks { display: flex; flex-wrap: wrap; gap: 16px; }
+      .check { display: flex; align-items: center; gap: 8px; color: #c8cad4; font-size: 12px; }
+      .check input { width: 15px; height: 15px; accent-color: var(--purple); }
+      .button { padding: 10px 15px; color: #17131e; background: var(--purple); border: 0; border-radius: 8px; font-size: 12px; font-weight: 700; }
+      .button:hover { filter: brightness(1.08); }
+      .button:disabled { opacity: .55; cursor: wait; }
+      .button.secondary { color: #ddd5ff; background: #302744; }
+      .button.danger { color: #ffdfe1; background: #48272e; }
+      .button.ghost { color: #c9cbd5; background: #252936; }
+      .content-grid { display: grid; grid-template-columns: minmax(240px, .75fr) minmax(0, 1.25fr); gap: 16px; margin-top: 16px; align-items: start; }
+      .content-grid .panel + .panel { margin-top: 0; }
+      .run-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 12px 10px; color: inherit; text-align: left; background: transparent; border: 0; border-bottom: 1px solid #292d38; }
+      .run-row:last-child { border-bottom: 0; }
+      .run-row:hover, .run-row.active { background: #222531; border-radius: 8px; }
+      .run-title { overflow: hidden; color: #e8e9ef; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+      .run-date { margin-top: 5px; color: var(--muted); font-size: 10px; }
+      .badge { flex: none; padding: 5px 7px; color: #c5c7d2; background: #292d39; border-radius: 20px; font-size: 10px; }
+      .badge.completed { color: var(--green); background: #1e342d; }
+      .badge.failed { color: var(--red); background: #3c252b; }
+      .badge.waiting_approval { color: #f2ce7a; background: #393321; }
+      .detail-placeholder, .empty { padding: 27px 10px; color: var(--muted); text-align: center; font-size: 12px; line-height: 1.7; }
+      .detail-meta { margin: 13px 0 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+      .detail-section { margin-top: 21px; }
+      .detail-section h3 { margin: 0 0 10px; color: #c9cbd5; font-size: 12px; }
+      pre { max-height: 380px; overflow: auto; margin: 0; padding: 13px; color: #c7c9d3; background: #12141b; border: 1px solid #2c303c; border-radius: 8px; font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .events { display: grid; gap: 10px; }
+      .event { padding-left: 12px; border-left: 2px solid #39334c; }
+      .event-name { color: #ded5ff; font-size: 11px; }
+      .event-date { margin-top: 3px; color: var(--muted); font-size: 10px; }
+      .event pre { margin-top: 7px; padding: 8px; }
+      .approval { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 13px; }
+      .notice { position: fixed; right: 20px; bottom: 20px; z-index: 5; max-width: min(420px, calc(100vw - 40px)); padding: 12px 16px; color: #f1f2f6; background: #292d39; border: 1px solid #454a5a; border-radius: 10px; box-shadow: 0 10px 40px #0007; font-size: 12px; }
+      .notice.error { border-color: #9a454e; }
+      .hidden { display: none !important; }
+      @media (max-width: 850px) {
+        .shell { grid-template-columns: 205px minmax(0, 1fr); }
+        .content-grid { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 620px) {
+        .shell { display: block; }
+        aside { padding: 14px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
+        .brand { padding: 0 5px 12px; }
+        .eyebrow { margin: 10px 5px 6px; }
+        .project-list { display: flex; overflow-x: auto; }
+        .project-list .list-button { width: auto; max-width: 190px; flex: none; }
+        .sidebar-action { width: auto; padding: 8px; }
+        .run-list, .sidebar-status { display: none; }
+        main { padding: 24px 16px 40px; }
+        .topbar { margin-bottom: 22px; }
+        .metrics { gap: 8px; }
+        .metric { padding: 13px 12px; }
+        .metric-value { font-size: 20px; }
+        .form-grid { grid-template-columns: 1fr; }
+        .field.full { grid-column: auto; }
+        .form-footer { align-items: flex-start; flex-direction: column; }
+        .form-footer .button { width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside>
+        <div class="brand"><span class="brand-mark">✳</span><span>Agent Techie</span></div>
+        <div class="eyebrow">Projects</div>
+        <div id="projects" class="project-list"><div class="empty">Loading projects…</div></div>
+        <button id="new-project-toggle" class="sidebar-action" type="button">＋ New project</button>
+        <form id="project-form" class="hidden">
+          <div class="field"><label for="project-name">Project name</label><input id="project-name" maxlength="120" required placeholder="My project" /></div>
+          <div class="field" style="margin-top:9px"><label for="project-repository">Repository (owner/name)</label><input id="project-repository" required pattern="[^\/\s]+\/[^\/\s]+" placeholder="octo/demo" /></div>
+          <button class="button secondary" style="margin-top:10px" type="submit">Create project</button>
+        </form>
+        <div class="eyebrow">Recent runs</div>
+        <div id="runs" class="run-list"><div class="empty">No runs yet</div></div>
+        <div id="sidebar-health" class="sidebar-status"><span class="dot"></span><span>Connecting to API</span></div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div><h1>Engineering workspace</h1><p class="subtitle">Plan, implement, test, and review repository tasks.</p></div>
+          <div id="health" class="health"><span class="dot"></span><span>Checking API</span></div>
+        </header>
+        <section class="metrics" aria-label="Run summary">
+          <div class="metric"><span class="metric-label">Projects</span><strong id="metric-projects" class="metric-value">—</strong></div>
+          <div class="metric"><span class="metric-label">Total runs</span><strong id="metric-runs" class="metric-value">—</strong></div>
+          <div class="metric"><span class="metric-label">Needs attention</span><strong id="metric-pending" class="metric-value">—</strong></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading"><div><h2>Start a workflow</h2><p class="panel-hint">Describe a task for the software engineering agents.</p></div></div>
+          <form id="task-form">
+            <div class="form-grid">
+              <div class="field"><label for="project-select">Project</label><select id="project-select"><option value="">No project (run standalone)</option></select></div>
+              <div class="field"><label for="repository">Repository (owner/name)</label><input id="repository" required pattern="[^\/\s]+\/[^\/\s]+" placeholder="octo/demo" /></div>
+              <div class="field full"><label for="task">What should the agents do?</label><textarea id="task" required placeholder="Example: Add pagination to the projects endpoint, including tests and API documentation."></textarea></div>
+            </div>
+            <div class="form-footer">
+              <div class="checks">
+                <label class="check"><input id="execute" type="checkbox" checked /> Include implementation, tests, and review</label>
+                <label class="check"><input id="approval" type="checkbox" /> Pause for my approval before completion</label>
+              </div>
+              <button id="submit-task" class="button" type="submit">Start workflow <span aria-hidden="true">→</span></button>
+            </div>
+          </form>
+        </section>
+
+        <div class="content-grid">
+          <section class="panel">
+            <div class="panel-heading"><div><h2>Workflow runs</h2><p id="runs-caption" class="panel-hint">All projects</p></div><button id="refresh" class="button ghost" type="button">Refresh</button></div>
+            <div id="run-list-main"><div class="empty">Loading runs…</div></div>
+          </section>
+          <section class="panel">
+            <div class="panel-heading"><div><h2>Run details</h2><p class="panel-hint">Select a run to inspect its result and events.</p></div></div>
+            <div id="run-detail" class="detail-placeholder">Choose a workflow run to see its status, agent output, and lifecycle events.</div>
+          </section>
+        </div>
+      </main>
+    </div>
+    <div id="notice" class="notice hidden" role="status"></div>
+    <script>
+      (() => {
+        const state = { projects: [], runs: [], projectId: "", runId: "", noticeTimer: null, busy: false };
+        const $ = (id) => document.getElementById(id);
+
+        async function api(path, options = {}) {
+          const response = await fetch(path, {
+            ...options,
+            headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+          });
+          const body = await response.json().catch(() => null);
+          if (!response.ok) {
+            const detail = body && body.detail;
+            throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail || `HTTP ${response.status}`));
+          }
+          return body;
+        }
+
+        function notify(message, isError = false) {
+          const notice = $("notice");
+          notice.textContent = message;
+          notice.classList.toggle("error", isError);
+          notice.classList.remove("hidden");
+          clearTimeout(state.noticeTimer);
+          state.noticeTimer = setTimeout(() => notice.classList.add("hidden"), 4500);
+        }
+
+        function escapeHtml(value) {
+          return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+            "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+          })[char]);
+        }
+
+        function date(value) {
+          if (!value) return "";
+          const parsed = new Date(value);
+          return Number.isNaN(parsed.getTime()) ? "" : parsed.toLocaleString();
+        }
+
+        function setHealth(healthy) {
+          const message = healthy ? "API connected" : "API unavailable";
+          $("health").classList.toggle("error", !healthy);
+          $("health").innerHTML = `<span class="dot"></span><span>${message}</span>`;
+          $("sidebar-health").innerHTML = `<span class="dot"></span><span>${message}</span>`;
+          $("sidebar-health").style.color = healthy ? "" : "var(--red)";
+          $("sidebar-health").querySelector(".dot").style.background = healthy ? "" : "var(--red)";
+        }
+
+        function renderProjects() {
+          const list = $("projects");
+          const select = $("project-select");
+          const selected = state.projectId;
+          list.innerHTML = state.projects.length
+            ? state.projects.map((project) => `<button type="button" class="list-button ${selected === project.project_id ? "active" : ""}" data-project="${escapeHtml(project.project_id)}" title="${escapeHtml(project.repository)}">${escapeHtml(project.name)}</button>`).join("")
+            : '<div class="empty">Create a project to organize runs.</div>';
+          select.innerHTML = '<option value="">No project (run standalone)</option>' +
+            state.projects.map((project) => `<option value="${escapeHtml(project.project_id)}">${escapeHtml(project.name)} — ${escapeHtml(project.repository)}</option>`).join("");
+          select.value = selected;
+          $("metric-projects").textContent = state.projects.length;
+          list.querySelectorAll("[data-project]").forEach((button) => button.addEventListener("click", () => chooseProject(button.dataset.project)));
+        }
+
+        function renderRuns() {
+          const runs = state.runs;
+          $("runs-caption").textContent = state.projectId
+            ? `Project: ${state.projects.find((p) => p.project_id === state.projectId)?.name || "selected"}`
+            : "All projects";
+          $("metric-runs").textContent = runs.length;
+          $("metric-pending").textContent = runs.filter((run) => ["queued", "running", "waiting_approval"].includes(run.status)).length;
+          const markup = runs.length ? runs.map((run) => {
+            const requestText = run.result?.user_request || run.result?.task || run.request?.task || run.error || "Workflow run";
+            return `<button type="button" class="run-row ${state.runId === run.run_id ? "active" : ""}" data-run="${escapeHtml(run.run_id)}">
+              <span style="min-width:0"><span class="run-title">${escapeHtml(requestText)}</span><span class="run-date">${escapeHtml(date(run.updated_at || run.created_at) || run.run_id.slice(0, 8))}</span></span>
+              <span class="badge ${escapeHtml(run.status)}">${escapeHtml(run.status.replaceAll("_", " "))}</span>
+            </button>`;
+          }).join("") : '<div class="empty">No runs yet. Start a workflow above.</div>';
+          $("runs").innerHTML = markup;
+          $("run-list-main").innerHTML = markup;
+          document.querySelectorAll("[data-run]").forEach((button) => button.addEventListener("click", () => selectRun(button.dataset.run)));
+        }
+
+        function renderDetail(run, events) {
+          const container = $("run-detail");
+          const result = run.result || {};
+          const canApprove = run.status === "waiting_approval";
+          const eventMarkup = events.length ? events.map((event) => `<div class="event">
+            <div class="event-name">${escapeHtml(event.event)}</div><div class="event-date">${escapeHtml(date(event.timestamp))}</div>
+            ${Object.keys(event.data || {}).length ? `<pre>${escapeHtml(JSON.stringify(event.data, null, 2))}</pre>` : ""}
+          </div>`).join("") : '<div class="empty">No events recorded yet.</div>';
+          container.className = "";
+          container.innerHTML = `<div><span class="badge ${escapeHtml(run.status)}">${escapeHtml(run.status.replaceAll("_", " "))}</span>
+            <p class="detail-meta">Run ID: ${escapeHtml(run.run_id)}${run.project_id ? `<br>Project: ${escapeHtml(run.project_id)}` : ""}</p>
+            ${run.error ? `<div class="detail-section"><h3>Error</h3><pre>${escapeHtml(run.error)}</pre></div>` : ""}
+            ${canApprove ? '<div class="approval"><button id="approve" class="button" type="button">Approve and continue</button><button id="deny" class="button danger" type="button">Deny approval</button></div>' : ""}
+            <div class="detail-section"><h3>Workflow result</h3><pre>${escapeHtml(JSON.stringify(result, null, 2) || "Waiting for workflow result…")}</pre></div>
+            <div class="detail-section"><h3>Lifecycle events</h3><div class="events">${eventMarkup}</div></div>
+          </div>`;
+          if (canApprove) {
+            $("approve").addEventListener("click", () => decideApproval(run.run_id, true));
+            $("deny").addEventListener("click", () => decideApproval(run.run_id, false));
+          }
+        }
+
+        async function refreshHealth() {
+          try { await api("/health"); setHealth(true); }
+          catch { setHealth(false); }
+        }
+
+        async function refreshProjects() {
+          state.projects = await api("/api/projects");
+          if (state.projectId && !state.projects.some((project) => project.project_id === state.projectId)) state.projectId = "";
+          renderProjects();
+        }
+
+        async function refreshRuns() {
+          const path = state.projectId ? `/api/projects/${encodeURIComponent(state.projectId)}/runs` : "/api/runs";
+          state.runs = await api(path);
+          renderRuns();
+          if (state.runId) {
+            const selected = state.runs.find((run) => run.run_id === state.runId);
+            if (selected) await loadRunDetail(selected.run_id, false);
+            else { state.runId = ""; $("run-detail").className = "detail-placeholder"; $("run-detail").textContent = "Choose a workflow run to see its status, agent output, and lifecycle events."; }
+          }
+        }
+
+        async function loadRunDetail(runId, announce = true) {
+          const path = state.projectId
+            ? `/api/projects/${encodeURIComponent(state.projectId)}/runs/${encodeURIComponent(runId)}`
+            : `/api/runs/${encodeURIComponent(runId)}`;
+          const [run, events] = await Promise.all([
+            api(path),
+            api(`/api/runs/${encodeURIComponent(runId)}/events`),
+          ]);
+          state.runId = runId;
+          renderRuns();
+          renderDetail(run, events);
+          if (announce) $("run-detail").scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+
+        async function selectRun(runId) {
+          try { await loadRunDetail(runId); }
+          catch (error) { notify(`Could not load run: ${error.message}`, true); }
+        }
+
+        async function chooseProject(projectId) {
+          state.projectId = state.projectId === projectId ? "" : projectId;
+          state.runId = "";
+          $("project-select").value = state.projectId;
+          const project = state.projects.find((item) => item.project_id === state.projectId);
+          $("repository").value = project?.repository || "";
+          $("repository").disabled = Boolean(project);
+          $("run-detail").className = "detail-placeholder";
+          $("run-detail").textContent = "Choose a workflow run to see its status, agent output, and lifecycle events.";
+          renderProjects();
+          try { await refreshRuns(); }
+          catch (error) { notify(`Could not load runs: ${error.message}`, true); }
+        }
+
+        async function decideApproval(runId, approved) {
+          try {
+            await api(`/api/runs/${encodeURIComponent(runId)}/approval`, {
+              method: "POST", body: JSON.stringify({ approved }),
+            });
+            notify(approved ? "Approval submitted. Workflow resumed." : "Denial submitted. Workflow stopped.");
+            await refreshRuns();
+          } catch (error) { notify(`Could not submit approval: ${error.message}`, true); }
+        }
+
+        $("project-select").addEventListener("change", () => chooseProject($("project-select").value));
+        $("new-project-toggle").addEventListener("click", () => $("project-form").classList.toggle("hidden"));
+        $("refresh").addEventListener("click", async () => {
+          try { await Promise.all([refreshProjects(), refreshRuns(), refreshHealth()]); notify("Workspace refreshed."); }
+          catch (error) { notify(`Could not refresh workspace: ${error.message}`, true); }
+        });
+        $("project-form").addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const button = event.currentTarget.querySelector("button[type=submit]");
+          button.disabled = true;
+          try {
+            const project = await api("/api/projects", {
+              method: "POST",
+              body: JSON.stringify({ name: $("project-name").value.trim(), repository: $("project-repository").value.trim() }),
+            });
+            $("project-form").reset();
+            $("project-form").classList.add("hidden");
+            await refreshProjects();
+            await chooseProject(project.project_id);
+            notify("Project created.");
+          } catch (error) { notify(`Could not create project: ${error.message}`, true); }
+          finally { button.disabled = false; }
+        });
+        $("task-form").addEventListener("submit", async (event) => {
+          event.preventDefault();
+          if (state.busy) return;
+          const button = $("submit-task");
+          state.busy = true;
+          button.disabled = true;
+          try {
+            const payload = {
+              repository: $("repository").value.trim(),
+              task: $("task").value.trim(),
+              project_id: state.projectId || null,
+              execute_implementation: $("execute").checked,
+              requires_approval: $("approval").checked,
+            };
+            const path = state.projectId
+              ? `/api/projects/${encodeURIComponent(state.projectId)}/tasks`
+              : "/api/tasks";
+            const created = await api(path, { method: "POST", body: JSON.stringify(payload) });
+            $("task").value = "";
+            notify(`Workflow queued: ${created.run_id}`);
+            await refreshRuns();
+            await selectRun(created.run_id);
+          } catch (error) { notify(`Could not start workflow: ${error.message}`, true); }
+          finally { state.busy = false; button.disabled = false; }
+        });
+
+        async function initialize() {
+          try {
+            await Promise.all([refreshHealth(), refreshProjects()]);
+            await refreshRuns();
+          } catch (error) { notify(`Could not load workspace: ${error.message}`, true); }
+        }
+
+        initialize();
+        setInterval(() => {
+          Promise.all([refreshHealth(), refreshRuns()]).catch((error) => notify(`Could not update workspace: ${error.message}`, true));
+        }, 3000);
+      })();
+    </script>
+  </body>
+</html>

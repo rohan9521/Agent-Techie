@@ -74,8 +74,8 @@ class GraphState(TypedDict, total=False):
     architecture: Architecture
     implementation_plan: list[str]
     code_change: CodeChange
-    test_report: TestReport
-    review_report: ReviewReport
+    test_report: TestReport | dict[str, object]
+    review_report: ReviewReport | dict[str, object]
     requires_approval: bool
     approval: bool | None
     execute_implementation: bool

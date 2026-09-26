@@ -2,7 +2,12 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from agent_techie.graph.state import GraphState, WorkflowState
+from agent_techie.graph.state import (
+    GraphState,
+    ReviewReport,
+    TestReport,
+    WorkflowState,
+)
 
 RouteName = Literal[
     "requirements",
@@ -21,6 +26,18 @@ class RoutingDecision(BaseModel):
     reason: str
 
 
+def _tests_passed(report: TestReport | dict[str, object] | None) -> bool:
+    if isinstance(report, TestReport):
+        return report.passed
+    return bool(report and report.get("passed", False))
+
+
+def _review_approved(report: ReviewReport | dict[str, object] | None) -> bool:
+    if isinstance(report, ReviewReport):
+        return report.approved
+    return bool(report and report.get("approved", False))
+
+
 class Supervisor:
     def __init__(self, max_iterations: int = 10) -> None:
         if max_iterations < 1:
@@ -28,6 +45,8 @@ class Supervisor:
         self.max_iterations = max_iterations
 
     def route(self, state: GraphState | WorkflowState) -> RoutingDecision:
+        test_report: TestReport | dict[str, object] | None
+        review_report: ReviewReport | dict[str, object] | None
         if isinstance(state, WorkflowState):
             requirements = state.requirements
             architecture = state.architecture
@@ -79,9 +98,9 @@ class Supervisor:
                 return RoutingDecision(
                     next_agent="reviewer", reason="Review is missing"
                 )
-            if not test_report.passed:
+            if not _tests_passed(test_report):
                 return RoutingDecision(next_agent="failed", reason="Tests did not pass")
-            if not review_report.approved:
+            if not _review_approved(review_report):
                 return RoutingDecision(
                     next_agent="failed", reason="Review did not approve the change"
                 )

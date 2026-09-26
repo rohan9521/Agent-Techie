@@ -47,3 +47,4 @@ class EventResponse(BaseModel):
     run_id: str
     event: str
     data: dict[str, object] = Field(default_factory=dict)
+    timestamp: str | None = None
