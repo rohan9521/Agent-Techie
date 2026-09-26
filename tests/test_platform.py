@@ -23,6 +23,21 @@ def test_full_workflow_can_pause_and_resume_for_approval() -> None:
     assert resumed["review_report"].approved is True
 
 
+def test_full_workflow_executes_all_implementation_phases() -> None:
+    result = build_workflow().invoke(
+        {
+            "user_request": "Add search",
+            "repository": "octo/demo",
+            "execute_implementation": True,
+        }
+    )
+
+    assert result["status"] == "completed"
+    assert result["code_change"].changes
+    assert result["test_report"].passed is True
+    assert result["review_report"].approved is True
+
+
 def test_workspace_tools_reject_escape_and_shell_operators(tmp_path: Path) -> None:
     tools = WorkspaceTools(tmp_path)
     tools.write_file("notes.txt", "safe")

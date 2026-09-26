@@ -79,6 +79,12 @@ class Supervisor:
                 return RoutingDecision(
                     next_agent="reviewer", reason="Review is missing"
                 )
+            if not test_report.passed:
+                return RoutingDecision(next_agent="failed", reason="Tests did not pass")
+            if not review_report.approved:
+                return RoutingDecision(
+                    next_agent="failed", reason="Review did not approve the change"
+                )
             if requires_approval and approval is None:
                 return RoutingDecision(
                     next_agent="approval", reason="Human approval is required"

@@ -94,7 +94,7 @@ def build_workflow(
     builder.add_node("coder_agent", write_code)
     builder.add_node("tester_agent", run_tests)
     builder.add_node("reviewer_agent", review_code)
-    builder.add_node("approval", request_approval)
+    builder.add_node("approval_gate", request_approval)
     builder.add_edge(START, "supervisor_agent")
     builder.add_conditional_edges(
         "supervisor_agent",
@@ -105,7 +105,7 @@ def build_workflow(
             "coder": "coder_agent",
             "tester": "tester_agent",
             "reviewer": "reviewer_agent",
-            "approval": "approval",
+            "approval": "approval_gate",
             "complete": END,
             "failed": END,
         },
@@ -115,5 +115,5 @@ def build_workflow(
     builder.add_edge("coder_agent", "supervisor_agent")
     builder.add_edge("tester_agent", "supervisor_agent")
     builder.add_edge("reviewer_agent", "supervisor_agent")
-    builder.add_edge("approval", END)
+    builder.add_edge("approval_gate", END)
     return builder.compile()
