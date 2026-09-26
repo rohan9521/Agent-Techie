@@ -4,6 +4,7 @@ from langgraph.graph import END, START, StateGraph
 
 from agent_techie.agents.architect import ArchitectAgent
 from agent_techie.agents.coder import CoderAgent
+from agent_techie.agents.model import StructuredModel
 from agent_techie.agents.requirements import RequirementsAgent
 from agent_techie.agents.reviewer import ReviewerAgent
 from agent_techie.agents.tester import TesterAgent
@@ -18,12 +19,13 @@ def build_workflow(
     tester_agent: TesterAgent | None = None,
     reviewer_agent: ReviewerAgent | None = None,
     supervisor: Supervisor | None = None,
+    model: StructuredModel | None = None,
 ) -> Any:
-    requirements = requirements_agent or RequirementsAgent()
-    architect = architect_agent or ArchitectAgent()
-    coder = coder_agent or CoderAgent()
+    requirements = requirements_agent or RequirementsAgent(model=model)
+    architect = architect_agent or ArchitectAgent(model=model)
+    coder = coder_agent or CoderAgent(model=model)
     tester = tester_agent or TesterAgent()
-    reviewer = reviewer_agent or ReviewerAgent()
+    reviewer = reviewer_agent or ReviewerAgent(model=model)
     routing = supervisor or Supervisor()
 
     def supervise(state: GraphState) -> dict[str, object]:
@@ -65,7 +67,11 @@ def build_workflow(
         }
 
     def write_code(state: GraphState) -> dict[str, object]:
-        result = coder.run(state["architecture"], state.get("repository", ""))
+        result = coder.run(
+            state["architecture"],
+            state.get("repository", ""),
+            state.get("user_request", ""),
+        )
         return {"code_change": result, "current_agent": "coder", "status": "running"}
 
     def run_tests(state: GraphState) -> dict[str, object]:
@@ -73,7 +79,11 @@ def build_workflow(
         return {"test_report": result, "current_agent": "tester", "status": "running"}
 
     def review_code(state: GraphState) -> dict[str, object]:
-        result = reviewer.run(state["code_change"], state["test_report"])
+        result = reviewer.run(
+            state["code_change"],
+            state["test_report"],
+            state.get("user_request", ""),
+        )
         return {
             "review_report": result,
             "current_agent": "reviewer",

@@ -84,6 +84,22 @@
       .detail-meta { margin: 13px 0 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
       .detail-section { margin-top: 21px; }
       .detail-section h3 { margin: 0 0 10px; color: #c9cbd5; font-size: 12px; }
+      .diagram-scroll { overflow-x: auto; padding: 8px 2px; background: #12141b; border: 1px solid #2c303c; border-radius: 9px; }
+      .diagram-scroll svg { display: block; max-width: none; }
+      .diagram-node { fill: #252338; stroke: #7562a6; stroke-width: 1.4; }
+      .diagram-label { fill: #f1efff; font: 12px ui-sans-serif, system-ui, sans-serif; }
+      .diagram-edge { fill: none; stroke: #9784c9; stroke-width: 1.5; }
+      .diagram-edge-label { fill: #bbb3ce; font: 10px ui-sans-serif, system-ui, sans-serif; }
+      .finding { margin-top: 8px; padding: 11px; background: #12141b; border: 1px solid #2c303c; border-left: 3px solid #9398aa; border-radius: 7px; }
+      .finding.high, .finding.critical { border-left-color: var(--red); }
+      .finding.medium { border-left-color: #f2ce7a; }
+      .finding.low, .finding.info { border-left-color: var(--green); }
+      .finding-heading { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-bottom: 6px; color: #e8e9ef; font-size: 11px; }
+      .finding p { margin: 4px 0 0; color: #c5c7d2; font-size: 11px; line-height: 1.55; }
+      .file-proposal { margin-top: 10px; }
+      .file-proposal summary, .raw-result summary { color: #ded5ff; cursor: pointer; font-size: 11px; }
+      .file-proposal pre { margin-top: 8px; }
+      .raw-result { margin-top: 20px; }
       pre { max-height: 380px; overflow: auto; margin: 0; padding: 13px; color: #c7c9d3; background: #12141b; border: 1px solid #2c303c; border-radius: 8px; font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
       .events { display: grid; gap: 10px; }
       .event { padding-left: 12px; border-left: 2px solid #39334c; }
@@ -157,7 +173,7 @@
             </div>
             <div class="form-footer">
               <div class="checks">
-                <label class="check"><input id="execute" type="checkbox" checked /> Include implementation, tests, and review</label>
+                <label class="check"><input id="execute" type="checkbox" checked /> Include code proposal and review</label>
                 <label class="check"><input id="approval" type="checkbox" /> Pause for my approval before completion</label>
               </div>
               <button id="submit-task" class="button" type="submit">Start workflow <span aria-hidden="true">→</span></button>
@@ -180,7 +196,7 @@
     <div id="notice" class="notice hidden" role="status"></div>
     <script>
       (() => {
-        const state = { projects: [], runs: [], projectId: "", runId: "", noticeTimer: null, busy: false };
+        const state = { projects: [], runs: [], projectId: "", runId: "", runListSnapshot: "", detailSnapshot: "", noticeTimer: null, busy: false };
         const $ = (id) => document.getElementById(id);
 
         async function api(path, options = {}) {
@@ -217,11 +233,12 @@
           return Number.isNaN(parsed.getTime()) ? "" : parsed.toLocaleString();
         }
 
-        function setHealth(healthy) {
-          const message = healthy ? "API connected" : "API unavailable";
+        function setHealth(healthy, status = null) {
+          const llm = status?.llm_enabled ? ` · ${status.model_name} active` : " · deterministic mode";
+          const message = healthy ? `API connected${llm}` : "API unavailable";
           $("health").classList.toggle("error", !healthy);
           $("health").innerHTML = `<span class="dot"></span><span>${message}</span>`;
-          $("sidebar-health").innerHTML = `<span class="dot"></span><span>${message}</span>`;
+          $("sidebar-health").innerHTML = `<span class="dot"></span><span>${healthy ? `API connected${status?.llm_enabled ? " · OpenAI" : ""}` : message}</span>`;
           $("sidebar-health").style.color = healthy ? "" : "var(--red)";
           $("sidebar-health").querySelector(".dot").style.background = healthy ? "" : "var(--red)";
         }
@@ -254,25 +271,117 @@
               <span class="badge ${escapeHtml(run.status)}">${escapeHtml(run.status.replaceAll("_", " "))}</span>
             </button>`;
           }).join("") : '<div class="empty">No runs yet. Start a workflow above.</div>';
-          $("runs").innerHTML = markup;
-          $("run-list-main").innerHTML = markup;
-          document.querySelectorAll("[data-run]").forEach((button) => button.addEventListener("click", () => selectRun(button.dataset.run)));
+          const snapshot = JSON.stringify([runs, state.runId, state.projectId]);
+          if (snapshot !== state.runListSnapshot) {
+            state.runListSnapshot = snapshot;
+            $("runs").innerHTML = markup;
+            $("run-list-main").innerHTML = markup;
+            document.querySelectorAll("[data-run]").forEach((button) => button.addEventListener("click", () => selectRun(button.dataset.run)));
+          }
+        }
+
+        function renderDiagram(architecture) {
+          const components = Array.isArray(architecture?.components) ? architecture.components : [];
+          if (!components.length) return '<div class="empty">No architecture diagram was produced.</div>';
+          const width = Math.max(680, components.length * 205 + 35);
+          const edges = Array.isArray(architecture.diagram_edges)
+            ? architecture.diagram_edges.filter((edge) => components.includes(edge.source) && components.includes(edge.target))
+            : [];
+          const diagramEdges = edges.length ? edges : components.slice(1).map((target, index) => ({
+            source: components[index], target, label: "",
+          }));
+          const edgeMarkup = diagramEdges.map((edge) => {
+            const from = components.indexOf(edge.source);
+            const to = components.indexOf(edge.target);
+            const startX = 25 + from * 205 + 170;
+            const endX = 25 + to * 205;
+            const midY = 77;
+            const bend = Math.max(15, Math.abs(endX - startX) / 2);
+            const controlOne = startX <= endX ? startX + bend : startX - bend;
+            const controlTwo = startX <= endX ? endX - bend : endX + bend;
+            const labelX = (startX + endX) / 2;
+            return `<path class="diagram-edge" marker-end="url(#arrow)" d="M ${startX} ${midY} C ${controlOne} ${midY}, ${controlTwo} ${midY}, ${endX} ${midY}"></path>
+              ${edge.label ? `<text class="diagram-edge-label" x="${labelX}" y="55" text-anchor="middle">${escapeHtml(edge.label)}</text>` : ""}`;
+          }).join("");
+          const nodeMarkup = components.map((component, index) => {
+            const x = 25 + index * 205;
+            const words = String(component).split(/\s+/);
+            const lines = [];
+            let line = "";
+            for (const word of words) {
+              if (line && `${line} ${word}`.length > 22) {
+                lines.push(line);
+                line = word;
+              } else {
+                line = line ? `${line} ${word}` : word;
+              }
+            }
+            if (line) lines.push(line);
+            const text = lines.slice(0, 3).map((part, lineIndex) =>
+              `<tspan x="${x + 85}" dy="${lineIndex ? 16 : 0}">${escapeHtml(part)}</tspan>`
+            ).join("");
+            return `<g><rect class="diagram-node" x="${x}" y="48" width="170" height="58" rx="10"></rect>
+              <text class="diagram-label" x="${x + 85}" y="${lines.length > 1 ? 69 : 82}" text-anchor="middle">${text}</text></g>`;
+          }).join("");
+          return `<div class="diagram-scroll"><svg role="img" aria-label="Proposed architecture diagram" width="${width}" height="150" viewBox="0 0 ${width} 150">
+            <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M 0 0 L 8 4 L 0 8 z" fill="#9784c9"></path></marker></defs>
+            ${edgeMarkup}${nodeMarkup}</svg></div>`;
+        }
+
+        function renderReview(review) {
+          if (!review) return '<div class="empty">No code review was produced.</div>';
+          const findings = Array.isArray(review.details) ? review.details : [];
+          const isLlmReview = review.review_mode === "llm";
+          const badgeText = isLlmReview
+            ? (review.approved ? "LLM review approved" : "LLM review needs changes")
+            : (review.approved ? "basic checks passed · no LLM review" : "checks failed");
+          const details = findings.map((finding) => `<div class="finding ${escapeHtml(finding.severity || "info")}">
+            <div class="finding-heading"><span class="badge ${escapeHtml(finding.severity || "info")}">${escapeHtml(finding.severity || "info")}</span>
+              ${finding.file ? `<span>${escapeHtml(finding.file)}${finding.line ? `:${escapeHtml(finding.line)}` : ""}</span>` : ""}</div>
+            <p>${escapeHtml(finding.issue || "")}</p>
+            ${finding.recommendation ? `<p><strong>Recommendation:</strong> ${escapeHtml(finding.recommendation)}</p>` : ""}
+          </div>`).join("");
+          const fallback = Array.isArray(review.findings) ? review.findings.map((finding) =>
+            `<div class="finding medium"><p>${escapeHtml(finding)}</p></div>`
+          ).join("") : "";
+          return `<span class="badge ${review.approved ? "completed" : "failed"}">${badgeText}</span>
+            <p class="detail-meta">${escapeHtml(review.summary || "")}</p>
+            ${details || fallback || '<div class="empty">No findings reported.</div>'}`;
+        }
+
+        function renderCodeChange(change) {
+          if (!change) return '<div class="empty">No code proposal was produced.</div>';
+          const files = change.file_contents && typeof change.file_contents === "object" ? change.file_contents : {};
+          const fileCards = Object.entries(files).map(([path, content]) => `<details class="file-proposal">
+            <summary>${escapeHtml(path)}</summary><pre>${escapeHtml(content)}</pre></details>`).join("");
+          const plan = Array.isArray(change.changes) && change.changes.length
+            ? `<ul>${change.changes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "";
+          return `${fileCards || '<div class="empty">This run did not generate source file contents. Enable OpenAI to request a code proposal.</div>'}
+            ${plan ? `<div class="detail-meta">Change summary</div>${plan}` : ""}`;
         }
 
         function renderDetail(run, events) {
           const container = $("run-detail");
           const result = run.result || {};
+          const architecture = result.architecture || {};
+          const codeChange = result.code_change || {};
+          const testReport = result.test_report || null;
+          const reviewReport = result.review_report || null;
           const canApprove = run.status === "waiting_approval";
           const eventMarkup = events.length ? events.map((event) => `<div class="event">
             <div class="event-name">${escapeHtml(event.event)}</div><div class="event-date">${escapeHtml(date(event.timestamp))}</div>
-            ${Object.keys(event.data || {}).length ? `<pre>${escapeHtml(JSON.stringify(event.data, null, 2))}</pre>` : ""}
           </div>`).join("") : '<div class="empty">No events recorded yet.</div>';
           container.className = "";
           container.innerHTML = `<div><span class="badge ${escapeHtml(run.status)}">${escapeHtml(run.status.replaceAll("_", " "))}</span>
             <p class="detail-meta">Run ID: ${escapeHtml(run.run_id)}${run.project_id ? `<br>Project: ${escapeHtml(run.project_id)}` : ""}</p>
             ${run.error ? `<div class="detail-section"><h3>Error</h3><pre>${escapeHtml(run.error)}</pre></div>` : ""}
             ${canApprove ? '<div class="approval"><button id="approve" class="button" type="button">Approve and continue</button><button id="deny" class="button danger" type="button">Deny approval</button></div>' : ""}
-            <div class="detail-section"><h3>Workflow result</h3><pre>${escapeHtml(JSON.stringify(result, null, 2) || "Waiting for workflow result…")}</pre></div>
+            ${architecture.summary ? `<div class="detail-section"><h3>Architecture</h3><p class="detail-meta">${escapeHtml(architecture.summary)}</p>${renderDiagram(architecture)}</div>` : ""}
+            ${result.implementation_plan?.length ? `<div class="detail-section"><h3>Implementation plan</h3><ul>${result.implementation_plan.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ul></div>` : ""}
+            ${codeChange.file_contents || codeChange.changes ? `<div class="detail-section"><h3>Proposed code</h3>${renderCodeChange(codeChange)}</div>` : ""}
+            ${testReport ? `<div class="detail-section"><h3>Validation</h3><span class="badge ${testReport.passed ? "completed" : "failed"}">${testReport.passed ? "passed" : "failed"}</span><p class="detail-meta">${escapeHtml(testReport.command || "")}${testReport.output ? `<br>${escapeHtml(testReport.output)}` : ""}</p>${testReport.failures?.length ? `<ul>${testReport.failures.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}</div>` : ""}
+            ${reviewReport ? `<div class="detail-section"><h3>Code review</h3>${renderReview(reviewReport)}</div>` : ""}
+            <details class="raw-result"><summary>Raw workflow data</summary><pre>${escapeHtml(JSON.stringify(result, null, 2) || "Waiting for workflow result…")}</pre></details>
             <div class="detail-section"><h3>Lifecycle events</h3><div class="events">${eventMarkup}</div></div>
           </div>`;
           if (canApprove) {
@@ -282,7 +391,10 @@
         }
 
         async function refreshHealth() {
-          try { await api("/health"); setHealth(true); }
+          try {
+            const [, status] = await Promise.all([api("/health"), api("/api/status")]);
+            setHealth(true, status);
+          }
           catch { setHealth(false); }
         }
 
@@ -313,7 +425,11 @@
           ]);
           state.runId = runId;
           renderRuns();
-          renderDetail(run, events);
+          const snapshot = JSON.stringify([run, events]);
+          if (announce || snapshot !== state.detailSnapshot) {
+            state.detailSnapshot = snapshot;
+            renderDetail(run, events);
+          }
           if (announce) $("run-detail").scrollIntoView({ behavior: "smooth", block: "nearest" });
         }
 

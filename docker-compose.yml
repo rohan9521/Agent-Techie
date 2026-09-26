@@ -6,6 +6,9 @@ services:
     environment:
       ENVIRONMENT: production
       LOG_LEVEL: INFO
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      MODEL_NAME: ${MODEL_NAME:-gpt-4o-mini}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DATABASE_URL: postgresql://agent_techie:agent_techie@postgres:5432/agent_techie
       REDIS_URL: redis://redis:6379/0
       PERSISTENCE_BACKEND: memory

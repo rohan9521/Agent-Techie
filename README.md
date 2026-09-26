@@ -1,15 +1,19 @@
 # Agent Techie
 
-Agent Techie is a local-first, multi-agent software-engineering workflow service.
-Give it a repository (`owner/name`) and a task. The requirements agent turns the
-task into structured requirements, the architect creates a design and plan, and,
-when implementation is enabled, coder, tester, and reviewer agents produce and
-validate a proposed change. A supervisor routes between phases and can pause for
-human approval.
+Agent Techie is a multi-agent software-engineering workflow service. Give it a
+repository identifier (`owner/name`) and a task. With OpenAI configured, the
+requirements agent produces structured requirements, the architect proposes a
+design with a diagram, the coder generates proposed file contents, and the
+reviewer produces findings on those proposed files. The supervisor routes between
+phases and can pause for human approval.
 
-The workflow is deterministic and does not call an LLM by default. The current
-coder produces a reviewable change proposal; it does not clone or modify a remote
-GitHub repository. The repository field identifies the project being discussed.
+LLM use is disabled by default. Without it, the app runs deterministic analysis
+and workflow checks; it does not produce source files or perform a substantive
+code review. When enabled, the reviewer checks the generated proposal, not the
+existing source in the named remote repository. Agent Techie does not fetch,
+commit, or modify that repository. Generated files are returned as proposals and
+are never written to disk automatically. Test validation is a dry run unless a
+separate execution workflow is explicitly implemented.
 
 ## What is included
 
@@ -17,8 +21,9 @@ GitHub repository. The repository field identifies the project being discussed.
   inspect structured results and lifecycle events, and approve or deny paused runs.
 - **REST API:** project management, standalone and project-scoped task submission,
   run listing/details, event history, and human approval.
-- **Workflow agents:** requirements, architecture, implementation proposal, test
-  report, review, and supervisor routing.
+- **Workflow agents:** optional OpenAI-generated requirements, architecture and
+  component diagram, code proposal, review findings, test report, and supervisor
+  routing.
 - **Workspace tools:** root-constrained workspace reads/writes/listing and
   allowlisted shell commands (no shell operators).
 - **Runtime:** FastAPI, JSON logging, in-memory persistence by default, optional
@@ -58,6 +63,8 @@ The dashboard and API are available on **http://localhost:8000/** and
 **http://localhost:8000/docs**. Compose starts the application, PostgreSQL, and
 Redis. The current application composition still uses in-memory persistence;
 starting the database services does not by itself switch persistence to them.
+Compose reads `LLM_PROVIDER`, `MODEL_NAME`, and `OPENAI_API_KEY` from the project
+`.env` file and passes them to the application container.
 Stop the services with `docker compose down`. Persistent database/Redis volumes
 remain; use `docker compose down -v` only when you intentionally want to remove
 their stored data.
@@ -71,8 +78,9 @@ The application reads environment variables and values in `.env`:
 | `ENVIRONMENT` | `development` | Runtime environment label. |
 | `API_PREFIX` | `/api` | Prefix for the REST API routes. |
 | `LOG_LEVEL` | `INFO` | Logging verbosity. |
-| `LLM_PROVIDER` | unset | Reserved provider configuration; no LLM is used by default. |
-| `MODEL_NAME` | unset | Reserved model configuration. |
+| `LLM_PROVIDER` | unset | Set to `openai` to enable OpenAI-backed agents. Blank disables LLM calls. |
+| `MODEL_NAME` | `gpt-4o-mini` | OpenAI model used for structured agent responses. |
+| `OPENAI_API_KEY` | unset | API key required when `LLM_PROVIDER=openai`. Keep it secret and out of source control. |
 | `WORKSPACE_ROOT` | `.` | Root boundary for workspace tools. |
 | `MAX_WORKFLOW_ITERATIONS` | `20` | Maximum supervisor routing iterations. |
 | `PERSISTENCE_BACKEND` | `memory` | Persistence selection setting; the current app composition uses in-memory persistence. |
@@ -83,6 +91,21 @@ The application reads environment variables and values in `.env`:
 | `LANGSMITH_API_KEY` | unset | Tracing credential; keep it secret and configure only when tracing is enabled. |
 | `LANGSMITH_PROJECT` | `agent-techie` | Tracing project name. |
 | `GITHUB_TOKEN` | unset | Optional GitHub service credential; do not commit credentials. |
+
+To enable OpenAI, set these values in `.env`:
+
+```dotenv
+LLM_PROVIDER=openai
+MODEL_NAME=gpt-4o-mini
+OPENAI_API_KEY=your-key
+```
+
+Restart the app after changing configuration. Selecting `openai` without a key
+raises a configuration error; the app does not silently switch providers. OpenAI
+receives the user task, generated requirements/design, and generated proposal
+needed for its agent calls, and requests may incur API charges. Do not include
+secrets or confidential source code in the task. The app does not retrieve
+repository contents from GitHub.
 
 See [.env.example](.env.example) for the complete template. PostgreSQL, Redis,
 GitHub, and tracing settings do not activate production adapters by themselves;
@@ -99,6 +122,7 @@ available at `/openapi.json`; `/docs` lists the documented routes interactively.
 | Method and path | What it does |
 | --- | --- |
 | `GET /health` | Returns `{"status":"ok","service":"agent-techie"}` when the app is responding. |
+| `GET /api/status` | Reports whether an LLM is configured and its provider/model name; never returns credentials. |
 
 ### Projects
 
@@ -134,7 +158,9 @@ Task body:
 
 `repository` must be in `owner/name` form and `task` must contain non-whitespace
 text. `project_id` is optional. `execute_implementation` defaults to `true`; set it
-to `false` for requirements and architecture analysis only. Set
+to `false` for requirements and architecture analysis only. With OpenAI enabled,
+an implementation run returns proposed source file contents and a structured
+review; without OpenAI it returns a dry-run plan only. Set
 `requires_approval` to `true` to pause an implementation workflow after review.
 The task endpoints return a queued run immediately; check its status with the run
 endpoints. Statuses include `queued`, `running`, `waiting_approval`, `completed`,

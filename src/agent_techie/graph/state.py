@@ -1,6 +1,7 @@
+from pathlib import PurePosixPath
 from typing import Literal, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 AgentName = Literal[
     "supervisor", "requirements", "architect", "coder", "tester", "reviewer"
@@ -8,6 +9,19 @@ AgentName = Literal[
 WorkflowStatus = Literal[
     "pending", "running", "waiting_approval", "completed", "failed"
 ]
+
+
+def _validate_generated_path(path: str) -> None:
+    parsed = PurePosixPath(path)
+    if (
+        not path
+        or parsed.is_absolute()
+        or not parsed.parts
+        or ".." in parsed.parts
+        or "\\" in path
+        or parsed.parts[0].endswith(":")
+    ):
+        raise ValueError(f"generated file path must stay within the project: {path}")
 
 
 class Requirements(BaseModel):
@@ -23,16 +37,58 @@ class Architecture(BaseModel):
     summary: str
     components: list[str] = Field(min_length=1)
     implementation_plan: list[str] = Field(min_length=1)
+    diagram_edges: list["DiagramEdge"] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)
     dependencies: list[str] = Field(default_factory=list)
 
 
+class DiagramEdge(BaseModel):
+    source: str
+    target: str
+    label: str = ""
+
+
 class CodeChange(BaseModel):
-    """A deterministic, reviewable description of a proposed implementation."""
+    """A proposed implementation; generated files are never applied automatically."""
 
     files: list[str] = Field(default_factory=list)
+    file_contents: dict[str, str] = Field(default_factory=dict)
     changes: list[str] = Field(default_factory=list)
     branch: str | None = None
+
+    @model_validator(mode="after")
+    def proposal_size_must_be_bounded(self) -> "CodeChange":
+        if len(self.files) > 12:
+            raise ValueError("a proposal may contain at most 12 files")
+        if sum(map(len, self.file_contents.values())) > 80_000:
+            raise ValueError("generated source files exceed the total size limit")
+        return self
+
+    @field_validator("files")
+    @classmethod
+    def file_paths_must_be_relative(cls, value: list[str]) -> list[str]:
+        for path in value:
+            _validate_generated_path(path)
+        return value
+
+    @field_validator("file_contents")
+    @classmethod
+    def generated_files_must_be_bounded(cls, value: dict[str, str]) -> dict[str, str]:
+        if len(value) > 12:
+            raise ValueError("a proposal may contain at most 12 files")
+        for path, content in value.items():
+            _validate_generated_path(path)
+            if len(content) > 30_000:
+                raise ValueError(f"generated file is too large: {path}")
+        return value
+
+
+class ReviewFinding(BaseModel):
+    severity: Literal["critical", "high", "medium", "low", "info"] = "info"
+    file: str = ""
+    line: int | None = None
+    issue: str
+    recommendation: str = ""
 
 
 class TestReport(BaseModel):
@@ -44,7 +100,9 @@ class TestReport(BaseModel):
 
 class ReviewReport(BaseModel):
     approved: bool = False
+    review_mode: Literal["llm", "deterministic"] = "deterministic"
     findings: list[str] = Field(default_factory=list)
+    details: list[ReviewFinding] = Field(default_factory=list)
     summary: str = ""
 
 
