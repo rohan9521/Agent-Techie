@@ -1,111 +1,152 @@
 # Agent Techie
 
-Agent Techie is a multi-agent software-engineering workflow service. Give it a
-repository identifier (`owner/name`) and a task. By default, local Ollama with
-Qwen is configured; OpenAI, Gemini, and Anthropic are also supported.
-the requirements agent produces structured requirements, the architect proposes a
-design with a diagram, the coder generates proposed file contents, and the
-reviewer produces findings on those proposed files. The supervisor routes between
-phases and can pause for human approval.
+Agent Techie is a multi-agent software-engineering workflow app. Describe a task
+and provide a repository identifier (`owner/name`) to get structured requirements,
+an architecture proposal, proposed file contents, a validation report, and a code
+review. The dashboard and REST API show each run's progress and results.
 
-LLM use can be disabled with `LLM_PROVIDER=disabled`. Without it, the app runs
-deterministic analysis and workflow checks; it does not produce source files or
-perform a substantive code review. When enabled, the reviewer checks the generated proposal, not the
-existing source in the named remote repository. Agent Techie does not fetch,
-commit, or modify that repository. Generated files are returned as proposals and
-are never written to disk automatically. Test validation is a dry run unless a
-separate execution workflow is explicitly implemented.
+The default model provider is a local Ollama server, configured to use
+`qwen2.5-coder`. OpenAI, Gemini, and Anthropic are also supported. Agent Techie
+does not clone or read the named repository, write generated files into it, or
+execute its test commands: code and review are proposals, and validation is a
+deterministic dry run.
 
-## What is included
+## Features
 
-- **Web dashboard:** create and select projects, start workflows, follow run status,
-  open runs in dedicated in-app tabs to inspect architecture and generated code,
-  view lifecycle events, and approve or deny paused runs.
-- **REST API:** project management, standalone and project-scoped task submission,
-  run listing/details, event history, and human approval.
-- **Workflow agents:** optional LLM-generated requirements, architecture and
-  component diagram, code proposal, review findings, test report, and supervisor
-  routing.
-- **Workspace tools:** root-constrained workspace reads/writes/listing and
-  allowlisted shell commands (no shell operators).
-- **Runtime:** FastAPI, JSON logging, in-memory persistence by default, optional
-  tracing configuration, Docker, Compose, and CI.
+- **In-app workflow tabs:** keep the engineering workspace and each opened
+  workflow in separate tabs within the app.
+- **Workflow dashboard:** create projects, submit tasks, monitor run status,
+  follow lifecycle events, and review runs awaiting human approval.
+- **Workflow stages:** requirements → architecture → code proposal → dry-run
+  validation → review, with supervisor routing between stages.
+- **Architecture and code view:** inspect the proposed architecture diagram,
+  implementation plan, generated file contents, validation report, and review
+  findings in a workflow tab.
+- **REST API:** manage projects, submit tasks, retrieve run results and events,
+  and approve or deny runs that are paused for approval.
+- **Optional workspace helpers:** root-constrained workspace file and command
+  utilities are available in the codebase, but are not automatically invoked by
+  the current workflow.
+
+## App walkthrough
+
+The workspace is the landing view. It summarizes projects and runs and provides
+the form for starting a workflow. Select a project or enter a repository name,
+describe the task, and choose whether to include a code proposal/review or pause
+for approval.
+
+![Engineering workspace with run summary and workflow form](docs/images/workspace.png)
+
+Select a run from the status list or recent runs to open it in its own in-app
+tab. Switch between that tab and the workspace using the tab bar. The workflow
+view shows the result from requirements and architecture through the proposed
+code, dry-run validation, review, and lifecycle events.
+
+![Workflow detail tab showing architecture, generated code, validation, and review](docs/images/workflow-detail.png)
+
+These screenshots use illustrative sample data; the shown task, generated code,
+validation result, and review are not from a live repository run.
+
+## Requirements
+
+- Python 3.11 or newer for a local installation.
+- Docker and the Docker Compose plugin for the containerized installation.
+- For local inference, [Ollama](https://ollama.com/) and a model downloaded to
+  that Ollama instance. For hosted inference, an API key for the selected
+  provider.
 
 ## Run locally
 
-Requires Python 3.11 or newer.
-
 ```bash
-git clone <repository-url>
+git clone https://github.com/rohan9521/Agent-Techie.git
 cd Agent-Techie
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e '.[dev]'
 cp .env.example .env
-uvicorn agent_techie.main:app --reload
 ```
 
-Open **http://127.0.0.1:8000/** for the dashboard. The interactive API reference
-is at **http://127.0.0.1:8000/docs**; the alternative ReDoc page is
-**http://127.0.0.1:8000/redoc**. The health check is **http://127.0.0.1:8000/health**.
-
-The frontend is served by the FastAPI app, so it needs no separate Node install,
-development server, or CORS configuration. It calls the same-origin API and
-refreshes run state and events automatically.
-
-## Run with Docker Compose
-
-Docker and the Compose plugin are required.
-
-```bash
-docker compose up --build
-```
-
-The dashboard and API are available on **http://localhost:8000/** and
-**http://localhost:8000/docs**. Compose starts the application, PostgreSQL, and
-Redis. The current application composition still uses in-memory persistence;
-starting the database services does not by itself switch persistence to them.
-Compose reads `LLM_PROVIDER`, `MODEL_NAME`, and provider API keys from the project
-`.env` file and passes them to the application container.
-Stop the services with `docker compose down`. Persistent database/Redis volumes
-remain; use `docker compose down -v` only when you intentionally want to remove
-their stored data.
-
-## Configuration
-
-The application reads environment variables and values in `.env`:
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `ENVIRONMENT` | `development` | Runtime environment label. |
-| `API_PREFIX` | `/api` | Prefix for the REST API routes. |
-| `LOG_LEVEL` | `INFO` | Logging verbosity. |
-| `LLM_PROVIDER` | `ollama` | Select `ollama`, `openai`, `gemini`, or `anthropic`; use `disabled` to turn LLM calls off. |
-| `MODEL_NAME` | `qwen2.5-coder` | Model passed to the selected provider; set the model name appropriate for that provider. |
-| `OPENAI_API_KEY` | unset | API key required when `LLM_PROVIDER=openai`. Keep it secret and out of source control. |
-| `GEMINI_API_KEY` | unset | API key required when `LLM_PROVIDER=gemini`. Keep it secret and out of source control. |
-| `ANTHROPIC_API_KEY` | unset | API key required when `LLM_PROVIDER=anthropic`. Keep it secret and out of source control. |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL when `LLM_PROVIDER=ollama`. |
-| `WORKSPACE_ROOT` | `.` | Root boundary for workspace tools. |
-| `MAX_WORKFLOW_ITERATIONS` | `20` | Maximum supervisor routing iterations. |
-| `PERSISTENCE_BACKEND` | `memory` | Persistence selection setting; the current app composition uses in-memory persistence. |
-| `DATABASE_URL` | unset | Database adapter configuration boundary. |
-| `REDIS_URL` | unset | Redis adapter configuration boundary. |
-| `LANGSMITH_TRACING` | `false` | Enable optional LangSmith-compatible tracing. |
-| `LANGSMITH_ENDPOINT` | `https://api.smith.langchain.com` | Tracing endpoint. |
-| `LANGSMITH_API_KEY` | unset | Tracing credential; keep it secret and configure only when tracing is enabled. |
-| `LANGSMITH_PROJECT` | `agent-techie` | Tracing project name. |
-| `GITHUB_TOKEN` | unset | Optional GitHub service credential; do not commit credentials. |
-
-By default the app uses a locally running Ollama server with Qwen. Install Ollama,
-start its server, and download the configured model:
+Start Ollama if it is not already running, and download the default model:
 
 ```bash
 ollama serve
 ollama pull qwen2.5-coder
 ```
 
-Set these values in `.env`:
+Start the application:
+
+```bash
+uvicorn agent_techie.main:app --reload
+```
+
+Open the dashboard at **http://127.0.0.1:8000/**. The interactive API
+documentation is at **http://127.0.0.1:8000/docs**, the alternative ReDoc page
+is **http://127.0.0.1:8000/redoc**, and the health check is
+**http://127.0.0.1:8000/health**.
+
+The frontend is served by FastAPI; it does not need a separate Node
+installation or development server.
+
+## Run with Docker Compose
+
+Create or update `.env` and choose a provider as described in
+[Configuration](#configuration). Then run:
+
+```bash
+docker compose up --build
+```
+
+The dashboard and API are available at **http://localhost:8000/** and
+**http://localhost:8000/docs**. When Ollama runs on the host and the app runs in
+Compose, the default `OLLAMA_DOCKER_BASE_URL` is
+`http://host.docker.internal:11434`. Change it if Ollama is reachable at a
+different address. The selected model must already be installed in Ollama.
+
+Compose also starts PostgreSQL and Redis, but the current app composition uses
+in-memory persistence; starting those services does not make runs durable.
+Compose's bundled database credentials are for local development, not a
+production deployment.
+
+Stop the services with `docker compose down`. This preserves named volumes;
+`docker compose down -v` removes them.
+
+## Configuration
+
+The application reads environment variables and values from `.env`. See
+[`.env.example`](.env.example) for a complete template.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ENVIRONMENT` | `development` | Runtime environment label. |
+| `API_PREFIX` | `/api` | Prefix for REST API routes. |
+| `LOG_LEVEL` | `INFO` | Logging verbosity. |
+| `LLM_PROVIDER` | `ollama` | Choose `ollama`, `openai`, `gemini`, or `anthropic`; use `disabled` for deterministic analysis without LLM calls. |
+| `MODEL_NAME` | `qwen2.5-coder` | Model name for the selected provider. |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama URL when running the app directly on the host. |
+| `OLLAMA_DOCKER_BASE_URL` | `http://host.docker.internal:11434` | Ollama URL passed to the app container by Compose. |
+| `OPENAI_API_KEY` | unset | Required when `LLM_PROVIDER=openai`. |
+| `GEMINI_API_KEY` | unset | Required when `LLM_PROVIDER=gemini`. |
+| `ANTHROPIC_API_KEY` | unset | Required when `LLM_PROVIDER=anthropic`. |
+| `WORKSPACE_ROOT` | `.` | Root boundary for optional workspace helpers; the workflow does not automatically use them. |
+| `MAX_WORKFLOW_ITERATIONS` | `20` | Maximum supervisor routing iterations. |
+| `PERSISTENCE_BACKEND` | `memory` | Persistence setting; the current app composition uses in-memory storage. |
+| `DATABASE_URL` | unset | Database adapter configuration; not used for persistence by the current app composition. |
+| `REDIS_URL` | unset | Redis adapter configuration; not used for persistence by the current app composition. |
+| `LANGSMITH_TRACING` | `false` | Enable optional LangSmith-compatible tracing. |
+| `LANGSMITH_ENDPOINT` | `https://api.smith.langchain.com` | Tracing endpoint. |
+| `LANGSMITH_API_KEY` | unset | Tracing credential. |
+| `LANGSMITH_PROJECT` | `agent-techie` | Tracing project name. |
+| `GITHUB_TOKEN` | unset | Optional GitHub credential; the current workflow does not fetch repository contents. |
+
+### Use local Qwen with Ollama
+
+Install and start [Ollama](https://ollama.com/), then pull a model:
+
+```bash
+ollama pull qwen2.5-coder
+```
+
+Use this configuration for a host installation:
 
 ```dotenv
 LLM_PROVIDER=ollama
@@ -113,88 +154,94 @@ MODEL_NAME=qwen2.5-coder
 OLLAMA_BASE_URL=http://localhost:11434
 ```
 
-Install the updated application dependencies (`python -m pip install -e '.[dev]'`),
-then restart the app. The model must already be available to the Ollama server.
-When running the application in Docker Compose while Ollama runs on the host, set
-`OLLAMA_DOCKER_BASE_URL=http://host.docker.internal:11434` in `.env` (this is the
-Compose default; `OLLAMA_BASE_URL` is for running the app directly on the host).
-If Ollama runs in another container or on another machine, set
-`OLLAMA_DOCKER_BASE_URL` to that Ollama service's reachable URL. Check
-`GET /api/status` to confirm the configured provider and model.
+For Compose, set `OLLAMA_DOCKER_BASE_URL` to the address reachable from the
+container. The default is suitable when Ollama is running on the Docker host on
+macOS or Windows. Linux users may need to configure a host-gateway address or
+place Ollama and Agent Techie on the same Docker network.
 
-To use OpenAI instead, set:
+### Use a hosted provider
+
+Set the provider, its model, and the corresponding API key in `.env`:
 
 ```dotenv
+# OpenAI
 LLM_PROVIDER=openai
 MODEL_NAME=gpt-4o-mini
-OPENAI_API_KEY=your-key
+OPENAI_API_KEY=your-openai-key
 ```
 
-Restart the app after changing configuration. Selecting `openai` without a key
-raises a configuration error; the app does not silently switch providers. OpenAI
-receives the user task, generated requirements/design, and generated proposal
-needed for its agent calls, and requests may incur API charges. Do not include
-secrets or confidential source code in the task. The app does not retrieve
-repository contents from GitHub.
-
-To use Gemini, configure a Gemini model and key:
-
 ```dotenv
+# Gemini
 LLM_PROVIDER=gemini
 MODEL_NAME=gemini-2.5-flash
-GEMINI_API_KEY=your-key
+GEMINI_API_KEY=your-gemini-key
 ```
-
-To use Anthropic, configure a Claude model and key:
 
 ```dotenv
+# Anthropic
 LLM_PROVIDER=anthropic
 MODEL_NAME=claude-3-5-sonnet-latest
-ANTHROPIC_API_KEY=your-key
+ANTHROPIC_API_KEY=your-anthropic-key
 ```
 
-Each cloud provider requires its own API key and receives the user task and
-agent-generated content; requests may incur charges. The app does not silently
-switch providers if a key is missing.
+Use a model name supported by the chosen provider. Restart the application
+after changing configuration. A missing key for a selected hosted provider
+raises a configuration error; Agent Techie does not silently switch providers.
+Hosted providers receive task and agent-generated content, and their use may
+incur charges. Keep API keys private and do not submit sensitive information
+unless your provider and deployment policies allow it.
 
-See [.env.example](.env.example) for the complete template. PostgreSQL, Redis,
-GitHub, and tracing settings do not activate production adapters by themselves;
-configure those integrations at the application composition boundary before
-relying on them.
+## Workflow behavior and safety
+
+- A normal workflow generates the requirements, architecture, proposed files,
+  deterministic test report, and review of those proposed files.
+- The repository value is a label used in the workflow; the app does not fetch
+  repository contents or inspect its existing source.
+- The tester reports `not-run (dry-run)` unless an execution mechanism is
+  explicitly integrated. A successful dry-run report is not evidence that the
+  proposed code compiles or that tests passed against a checkout.
+- Generated files are returned as workflow data and are not written to a local
+  repository or committed automatically.
+- `execute_implementation=false` stops after requirements and architecture.
+  Setting `requires_approval=true` pauses after implementation and review so an
+  approval request can resume or deny the workflow.
+- With `LLM_PROVIDER=disabled`, the app can produce deterministic workflow
+  results but does not generate model-authored source proposals or substantive
+  model review.
 
 ## REST API
 
-All JSON API routes use the `/api` prefix by default. The OpenAPI schema is
-available at `/openapi.json`; `/docs` lists the documented routes interactively.
+The default API prefix is `/api`. The OpenAPI schema is available at
+`/openapi.json`; `/docs` provides interactive API documentation.
 
 ### System
 
 | Method and path | What it does |
 | --- | --- |
-| `GET /health` | Returns `{"status":"ok","service":"agent-techie"}` when the app is responding. |
-| `GET /api/status` | Reports whether an LLM is configured and its provider/model name; never returns credentials. |
+| `GET /health` | Returns a health response when the service is responding. |
+| `GET /api/status` | Reports the configured provider and model without returning credentials. |
 
 ### Projects
 
 | Method and path | What it does |
 | --- | --- |
-| `POST /api/projects` | Creates a project. Body: `{"name":"Demo","repository":"octo/demo"}`. Returns `201` and a project ID. |
+| `POST /api/projects` | Creates a project. Example body: `{"name":"Demo","repository":"octo/demo"}`. |
 | `GET /api/projects` | Lists projects. |
-| `GET /api/projects/{project_id}` | Gets one project; returns `404` if it does not exist. |
+| `GET /api/projects/{project_id}` | Gets one project. |
 
 ### Tasks and workflow runs
 
 | Method and path | What it does |
 | --- | --- |
-| `POST /api/tasks` | Queues a standalone workflow and returns `202` with `run_id` and `status`. |
-| `POST /api/projects/{project_id}/tasks` | Queues a workflow for a project. The project must exist; its stored repository is used. Returns `404` for an unknown project. |
-| `GET /api/runs` | Lists runs. Optional `project_id` query parameter filters the list. |
-| `GET /api/projects/{project_id}/runs` | Lists runs for a project; returns `404` if the project does not exist. |
-| `GET /api/runs/{run_id}` | Gets run status, result, or error; returns `404` for an unknown run. |
-| `GET /api/projects/{project_id}/runs/{run_id}` | Gets a run scoped to a project; returns `404` if the run is missing or belongs to another project. |
-| `GET /api/runs/{run_id}/events` | Lists lifecycle events for a run; returns `404` for an unknown run. |
+| `POST /api/tasks` | Queues a standalone workflow and returns `202` with a `run_id` and `status`. |
+| `POST /api/projects/{project_id}/tasks` | Queues a workflow for a project using its stored repository. |
+| `GET /api/runs` | Lists runs; optional `project_id` filters the list. |
+| `GET /api/projects/{project_id}/runs` | Lists runs for one project. |
+| `GET /api/runs/{run_id}` | Gets a run's status, request, result, or error. |
+| `GET /api/projects/{project_id}/runs/{run_id}` | Gets a run scoped to a project. |
+| `GET /api/runs/{run_id}/events` | Lists lifecycle events for a run. |
 
-Task body:
+Task request example:
 
 ```json
 {
@@ -206,21 +253,18 @@ Task body:
 }
 ```
 
-`repository` must be in `owner/name` form and `task` must contain non-whitespace
-text. `project_id` is optional. `execute_implementation` defaults to `true`; set it
-to `false` for requirements and architecture analysis only. With OpenAI enabled,
-an implementation run returns proposed source file contents and a structured
-review; without OpenAI it returns a dry-run plan only. Set
-`requires_approval` to `true` to pause an implementation workflow after review.
-The task endpoints return a queued run immediately; check its status with the run
-endpoints. Statuses include `queued`, `running`, `waiting_approval`, `completed`,
-and `failed`.
+`repository` must use `owner/name` form and `task` must contain non-whitespace
+text. `project_id` is optional. `execute_implementation` defaults to `true`;
+use `false` to stop after requirements and architecture. Set
+`requires_approval` to `true` to pause after review. Task submission returns a
+queued run immediately; poll the run endpoints for statuses such as `queued`,
+`running`, `waiting_approval`, `completed`, and `failed`.
 
 ### Human approval
 
 | Method and path | What it does |
 | --- | --- |
-| `POST /api/runs/{run_id}/approval` | Resumes a run awaiting approval. Body: `{"approved":true}` continues implementation; `{"approved":false}` denies approval and the run fails. Returns `202`; returns `404` for an unknown run and `409` if the run is not waiting for approval. |
+| `POST /api/runs/{run_id}/approval` | Resumes a run awaiting approval. Send `{"approved":true}` to continue or `{"approved":false}` to deny. |
 
 ### Example API session
 
@@ -235,7 +279,7 @@ curl -X POST http://127.0.0.1:8000/api/projects/PROJECT_ID/tasks \
   -H 'Content-Type: application/json' \
   -d '{"repository":"octo/demo","task":"Add pagination","execute_implementation":true,"requires_approval":true}'
 
-# Inspect run status/results and events (replace RUN_ID with the returned run_id)
+# Inspect status, results, and events (replace RUN_ID with the returned run_id)
 curl http://127.0.0.1:8000/api/runs/RUN_ID
 curl http://127.0.0.1:8000/api/runs/RUN_ID/events
 
@@ -245,10 +289,13 @@ curl -X POST http://127.0.0.1:8000/api/runs/RUN_ID/approval \
   -d '{"approved":true}'
 ```
 
-The `/events/{run_id}` alias is also available but is not included in the OpenAPI
-schema; prefer `/api/runs/{run_id}/events`.
+The `/events/{run_id}` alias is also available but is not included in the
+OpenAPI schema; prefer `/api/runs/{run_id}/events`.
 
 ## Development and tests
+
+Install development dependencies with `python -m pip install -e '.[dev]'`, then
+run:
 
 ```bash
 pytest
@@ -257,5 +304,6 @@ ruff format --check .
 mypy src
 ```
 
-The default in-memory store is process-local and is cleared when the app restarts.
-Use a production persistence adapter for durable or multi-worker deployments.
+The default in-memory store is process-local and is cleared when the app
+restarts. Configure and integrate a durable persistence adapter before using
+the app for durable or multi-worker deployments.
