@@ -15,6 +15,10 @@ class ArchitectAgent:
     ) -> Architecture:
         if requirements is None:
             raise ValueError("requirements are required before architecture")
+        if isinstance(requirements, Mapping) and not requirements.get(
+            "functional_requirements"
+        ):
+            raise ValueError("functional requirements are required")
         validated = Requirements.model_validate(requirements)
         if not validated.functional_requirements:
             raise ValueError("functional requirements are required")

@@ -7,8 +7,11 @@ services:
       ENVIRONMENT: production
       LOG_LEVEL: INFO
       LLM_PROVIDER: ${LLM_PROVIDER:-}
-      MODEL_NAME: ${MODEL_NAME:-gpt-4o-mini}
+      MODEL_NAME: ${MODEL_NAME:-qwen2.5-coder}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_DOCKER_BASE_URL:-http://host.docker.internal:11434}
       DATABASE_URL: postgresql://agent_techie:agent_techie@postgres:5432/agent_techie
       REDIS_URL: redis://redis:6379/0
       PERSISTENCE_BACKEND: memory

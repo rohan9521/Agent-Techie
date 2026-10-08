@@ -1,9 +1,16 @@
+from unittest.mock import patch
+
 import pytest
 from pydantic import ValidationError
 
 from agent_techie.agents.architect import ArchitectAgent
 from agent_techie.agents.coder import CoderAgent
-from agent_techie.agents.model import StructuredModel
+from agent_techie.agents.model import (
+    AnthropicModel,
+    GeminiModel,
+    OllamaModel,
+    StructuredModel,
+)
 from agent_techie.agents.requirements import RequirementsAgent
 from agent_techie.agents.reviewer import ReviewerAgent
 from agent_techie.graph.state import (
@@ -65,6 +72,11 @@ def test_architecture_schema_rejects_missing_components() -> None:
         Architecture.model_validate({"summary": "incomplete"})
 
 
+def test_requirements_schema_rejects_empty_functional_requirements() -> None:
+    with pytest.raises(ValidationError):
+        Requirements.model_validate({"functional_requirements": []})
+
+
 def test_architect_rejects_empty_functional_requirements() -> None:
     with pytest.raises(ValueError, match="functional requirements"):
         ArchitectAgent().run({"functional_requirements": []})
@@ -86,6 +98,53 @@ def test_llm_agents_generate_design_code_and_review() -> None:
     assert review.approved is True
     assert review.review_mode == "llm"
     assert len(model.prompts) == 4
+
+
+def test_ollama_model_returns_validated_structured_output() -> None:
+    with patch("agent_techie.agents.model.ChatOllama") as chat_ollama:
+        (
+            chat_ollama.return_value.with_structured_output.return_value.invoke.return_value
+        ) = {"functional_requirements": ["Add search"]}
+        model = OllamaModel("http://localhost:11434", "llama3.2")
+
+        result = model.generate("system prompt", "user prompt", Requirements)
+
+    assert result.functional_requirements == ["Add search"]
+    chat_ollama.assert_called_once_with(
+        base_url="http://localhost:11434",
+        model="llama3.2",
+        temperature=0,
+    )
+
+
+@pytest.mark.parametrize(
+    ("model_type", "provider_client", "constructor_args"),
+    [
+        (
+            GeminiModel,
+            "ChatGoogleGenerativeAI",
+            {"google_api_key": "test-key", "model": "gemini-test", "temperature": 0},
+        ),
+        (
+            AnthropicModel,
+            "ChatAnthropic",
+            {"api_key": "test-key", "model": "claude-test", "temperature": 0},
+        ),
+    ],
+)
+def test_cloud_models_return_validated_structured_output(
+    model_type, provider_client: str, constructor_args: dict[str, object]
+) -> None:
+    with patch(f"agent_techie.agents.model.{provider_client}") as client:
+        (
+            client.return_value.with_structured_output.return_value.invoke.return_value
+        ) = {"functional_requirements": ["Add search"]}
+        model = model_type("test-key", str(constructor_args["model"]))
+
+        result = model.generate("system prompt", "user prompt", Requirements)
+
+    assert result.functional_requirements == ["Add search"]
+    client.assert_called_once_with(**constructor_args)
 
 
 def test_llm_workflow_returns_design_code_and_review() -> None:

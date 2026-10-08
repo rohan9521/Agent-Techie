@@ -25,7 +25,7 @@ def _validate_generated_path(path: str) -> None:
 
 
 class Requirements(BaseModel):
-    functional_requirements: list[str] = Field(default_factory=list)
+    functional_requirements: list[str] = Field(min_length=1)
     non_functional_requirements: list[str] = Field(default_factory=list)
     api_requirements: list[str] = Field(default_factory=list)
     acceptance_criteria: list[str] = Field(default_factory=list)

@@ -3,7 +3,13 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
-from agent_techie.agents.model import OpenAIModel, StructuredModel
+from agent_techie.agents.model import (
+    AnthropicModel,
+    GeminiModel,
+    OllamaModel,
+    OpenAIModel,
+    StructuredModel,
+)
 from agent_techie.api.routes import router
 from agent_techie.config import Settings, get_settings
 from agent_techie.graph.supervisor import Supervisor
@@ -16,16 +22,29 @@ FRONTEND_FILE = Path(__file__).parent / "static" / "index.html"
 
 def _configured_model(settings: Settings) -> StructuredModel | None:
     provider = (settings.llm_provider or "").strip().lower()
-    if not provider:
+    if not provider or provider == "disabled":
         return None
-    if provider != "openai":
+    if provider == "ollama":
+        return OllamaModel(
+            base_url=settings.ollama_base_url,
+            model_name=settings.model_name,
+        )
+    api_keys = {
+        "openai": ("OPENAI_API_KEY", settings.openai_api_key),
+        "gemini": ("GEMINI_API_KEY", settings.gemini_api_key),
+        "anthropic": ("ANTHROPIC_API_KEY", settings.anthropic_api_key),
+    }
+    if provider not in api_keys:
         raise ValueError(f"Unsupported LLM_PROVIDER: {settings.llm_provider}")
-    if settings.openai_api_key is None:
-        raise ValueError("OPENAI_API_KEY is required when LLM_PROVIDER=openai")
-    return OpenAIModel(
-        api_key=settings.openai_api_key.get_secret_value(),
-        model_name=settings.model_name,
-    )
+    key_name, api_key = api_keys[provider]
+    if api_key is None:
+        raise ValueError(f"{key_name} is required when LLM_PROVIDER={provider}")
+    key = api_key.get_secret_value()
+    if provider == "openai":
+        return OpenAIModel(api_key=key, model_name=settings.model_name)
+    if provider == "gemini":
+        return GeminiModel(api_key=key, model_name=settings.model_name)
+    return AnthropicModel(api_key=key, model_name=settings.model_name)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

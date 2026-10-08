@@ -39,6 +39,7 @@ class RunResponse(BaseModel):
     run_id: str
     status: str
     project_id: str | None = None
+    request: dict[str, object] | None = None
     result: dict[str, object] | None = None
     error: str | None = None
 

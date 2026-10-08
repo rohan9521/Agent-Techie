@@ -1,15 +1,16 @@
 # Agent Techie
 
 Agent Techie is a multi-agent software-engineering workflow service. Give it a
-repository identifier (`owner/name`) and a task. With OpenAI configured, the
-requirements agent produces structured requirements, the architect proposes a
+repository identifier (`owner/name`) and a task. By default, local Ollama with
+Qwen is configured; OpenAI, Gemini, and Anthropic are also supported.
+the requirements agent produces structured requirements, the architect proposes a
 design with a diagram, the coder generates proposed file contents, and the
 reviewer produces findings on those proposed files. The supervisor routes between
 phases and can pause for human approval.
 
-LLM use is disabled by default. Without it, the app runs deterministic analysis
-and workflow checks; it does not produce source files or perform a substantive
-code review. When enabled, the reviewer checks the generated proposal, not the
+LLM use can be disabled with `LLM_PROVIDER=disabled`. Without it, the app runs
+deterministic analysis and workflow checks; it does not produce source files or
+perform a substantive code review. When enabled, the reviewer checks the generated proposal, not the
 existing source in the named remote repository. Agent Techie does not fetch,
 commit, or modify that repository. Generated files are returned as proposals and
 are never written to disk automatically. Test validation is a dry run unless a
@@ -18,10 +19,11 @@ separate execution workflow is explicitly implemented.
 ## What is included
 
 - **Web dashboard:** create and select projects, start workflows, follow run status,
-  inspect structured results and lifecycle events, and approve or deny paused runs.
+  open runs in dedicated in-app tabs to inspect architecture and generated code,
+  view lifecycle events, and approve or deny paused runs.
 - **REST API:** project management, standalone and project-scoped task submission,
   run listing/details, event history, and human approval.
-- **Workflow agents:** optional OpenAI-generated requirements, architecture and
+- **Workflow agents:** optional LLM-generated requirements, architecture and
   component diagram, code proposal, review findings, test report, and supervisor
   routing.
 - **Workspace tools:** root-constrained workspace reads/writes/listing and
@@ -63,7 +65,7 @@ The dashboard and API are available on **http://localhost:8000/** and
 **http://localhost:8000/docs**. Compose starts the application, PostgreSQL, and
 Redis. The current application composition still uses in-memory persistence;
 starting the database services does not by itself switch persistence to them.
-Compose reads `LLM_PROVIDER`, `MODEL_NAME`, and `OPENAI_API_KEY` from the project
+Compose reads `LLM_PROVIDER`, `MODEL_NAME`, and provider API keys from the project
 `.env` file and passes them to the application container.
 Stop the services with `docker compose down`. Persistent database/Redis volumes
 remain; use `docker compose down -v` only when you intentionally want to remove
@@ -78,9 +80,12 @@ The application reads environment variables and values in `.env`:
 | `ENVIRONMENT` | `development` | Runtime environment label. |
 | `API_PREFIX` | `/api` | Prefix for the REST API routes. |
 | `LOG_LEVEL` | `INFO` | Logging verbosity. |
-| `LLM_PROVIDER` | unset | Set to `openai` to enable OpenAI-backed agents. Blank disables LLM calls. |
-| `MODEL_NAME` | `gpt-4o-mini` | OpenAI model used for structured agent responses. |
+| `LLM_PROVIDER` | `ollama` | Select `ollama`, `openai`, `gemini`, or `anthropic`; use `disabled` to turn LLM calls off. |
+| `MODEL_NAME` | `qwen2.5-coder` | Model passed to the selected provider; set the model name appropriate for that provider. |
 | `OPENAI_API_KEY` | unset | API key required when `LLM_PROVIDER=openai`. Keep it secret and out of source control. |
+| `GEMINI_API_KEY` | unset | API key required when `LLM_PROVIDER=gemini`. Keep it secret and out of source control. |
+| `ANTHROPIC_API_KEY` | unset | API key required when `LLM_PROVIDER=anthropic`. Keep it secret and out of source control. |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL when `LLM_PROVIDER=ollama`. |
 | `WORKSPACE_ROOT` | `.` | Root boundary for workspace tools. |
 | `MAX_WORKFLOW_ITERATIONS` | `20` | Maximum supervisor routing iterations. |
 | `PERSISTENCE_BACKEND` | `memory` | Persistence selection setting; the current app composition uses in-memory persistence. |
@@ -92,7 +97,32 @@ The application reads environment variables and values in `.env`:
 | `LANGSMITH_PROJECT` | `agent-techie` | Tracing project name. |
 | `GITHUB_TOKEN` | unset | Optional GitHub service credential; do not commit credentials. |
 
-To enable OpenAI, set these values in `.env`:
+By default the app uses a locally running Ollama server with Qwen. Install Ollama,
+start its server, and download the configured model:
+
+```bash
+ollama serve
+ollama pull qwen2.5-coder
+```
+
+Set these values in `.env`:
+
+```dotenv
+LLM_PROVIDER=ollama
+MODEL_NAME=qwen2.5-coder
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+Install the updated application dependencies (`python -m pip install -e '.[dev]'`),
+then restart the app. The model must already be available to the Ollama server.
+When running the application in Docker Compose while Ollama runs on the host, set
+`OLLAMA_DOCKER_BASE_URL=http://host.docker.internal:11434` in `.env` (this is the
+Compose default; `OLLAMA_BASE_URL` is for running the app directly on the host).
+If Ollama runs in another container or on another machine, set
+`OLLAMA_DOCKER_BASE_URL` to that Ollama service's reachable URL. Check
+`GET /api/status` to confirm the configured provider and model.
+
+To use OpenAI instead, set:
 
 ```dotenv
 LLM_PROVIDER=openai
@@ -106,6 +136,26 @@ receives the user task, generated requirements/design, and generated proposal
 needed for its agent calls, and requests may incur API charges. Do not include
 secrets or confidential source code in the task. The app does not retrieve
 repository contents from GitHub.
+
+To use Gemini, configure a Gemini model and key:
+
+```dotenv
+LLM_PROVIDER=gemini
+MODEL_NAME=gemini-2.5-flash
+GEMINI_API_KEY=your-key
+```
+
+To use Anthropic, configure a Claude model and key:
+
+```dotenv
+LLM_PROVIDER=anthropic
+MODEL_NAME=claude-3-5-sonnet-latest
+ANTHROPIC_API_KEY=your-key
+```
+
+Each cloud provider requires its own API key and receives the user task and
+agent-generated content; requests may incur charges. The app does not silently
+switch providers if a key is missing.
 
 See [.env.example](.env.example) for the complete template. PostgreSQL, Redis,
 GitHub, and tracing settings do not activate production adapters by themselves;

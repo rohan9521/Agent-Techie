@@ -69,9 +69,15 @@
       .button.secondary { color: #ddd5ff; background: #302744; }
       .button.danger { color: #ffdfe1; background: #48272e; }
       .button.ghost { color: #c9cbd5; background: #252936; }
-      .content-grid { display: grid; grid-template-columns: minmax(240px, .75fr) minmax(0, 1.25fr); gap: 16px; margin-top: 16px; align-items: start; }
-      .content-grid .panel + .panel { margin-top: 0; }
-      .run-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 12px 10px; color: inherit; text-align: left; background: transparent; border: 0; border-bottom: 1px solid #292d38; }
+      .app-tabs { display: flex; align-items: stretch; gap: 4px; overflow-x: auto; margin: 0 0 20px; border-bottom: 1px solid var(--line); scrollbar-color: #454a5a #11131a; }
+      .app-tab-item { display: flex; align-items: stretch; flex: none; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; }
+      .app-tab-item.active { background: var(--panel); border-color: var(--line); }
+      .app-tab { max-width: 270px; overflow: hidden; padding: 10px 12px; color: #c7cad5; text-overflow: ellipsis; white-space: nowrap; background: transparent; border: 0; font-size: 12px; }
+      .app-tab:hover, .app-tab[aria-selected="true"] { color: white; }
+      .app-tab-close { align-self: center; padding: 5px 8px; color: var(--muted); background: transparent; border: 0; border-radius: 6px; }
+      .app-tab-close:hover { color: white; background: #39313f; }
+      .workflow-page { margin-top: 22px; }
+      .run-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 12px 10px; color: inherit; text-align: left; text-decoration: none; background: transparent; border: 0; border-bottom: 1px solid #292d38; }
       .run-row:last-child { border-bottom: 0; }
       .run-row:hover, .run-row.active { background: #222531; border-radius: 8px; }
       .run-title { overflow: hidden; color: #e8e9ef; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
@@ -98,6 +104,7 @@
       .finding p { margin: 4px 0 0; color: #c5c7d2; font-size: 11px; line-height: 1.55; }
       .file-proposal { margin-top: 10px; }
       .file-proposal summary, .raw-result summary { color: #ded5ff; cursor: pointer; font-size: 11px; }
+      .file-proposal[open] summary { margin-bottom: 8px; }
       .file-proposal pre { margin-top: 8px; }
       .raw-result { margin-top: 20px; }
       pre { max-height: 380px; overflow: auto; margin: 0; padding: 13px; color: #c7c9d3; background: #12141b; border: 1px solid #2c303c; border-radius: 8px; font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -154,16 +161,18 @@
 
       <main>
         <header class="topbar">
-          <div><h1>Engineering workspace</h1><p class="subtitle">Plan, implement, test, and review repository tasks.</p></div>
+          <div><h1 id="page-title">Engineering workspace</h1><p id="page-subtitle" class="subtitle">Plan, implement, test, and review repository tasks.</p></div>
           <div id="health" class="health"><span class="dot"></span><span>Checking API</span></div>
         </header>
-        <section class="metrics" aria-label="Run summary">
-          <div class="metric"><span class="metric-label">Projects</span><strong id="metric-projects" class="metric-value">—</strong></div>
-          <div class="metric"><span class="metric-label">Total runs</span><strong id="metric-runs" class="metric-value">—</strong></div>
-          <div class="metric"><span class="metric-label">Needs attention</span><strong id="metric-pending" class="metric-value">—</strong></div>
-        </section>
+        <div id="app-tabs" class="app-tabs" role="tablist" aria-label="Open workspace and workflows"></div>
+        <div id="workspace-view">
+          <section class="metrics" aria-label="Run summary">
+            <div class="metric"><span class="metric-label">Projects</span><strong id="metric-projects" class="metric-value">—</strong></div>
+            <div class="metric"><span class="metric-label">Total runs</span><strong id="metric-runs" class="metric-value">—</strong></div>
+            <div class="metric"><span class="metric-label">Needs attention</span><strong id="metric-pending" class="metric-value">—</strong></div>
+          </section>
 
-        <section class="panel">
+          <section class="panel">
           <div class="panel-heading"><div><h2>Start a workflow</h2><p class="panel-hint">Describe a task for the software engineering agents.</p></div></div>
           <form id="task-form">
             <div class="form-grid">
@@ -179,24 +188,28 @@
               <button id="submit-task" class="button" type="submit">Start workflow <span aria-hidden="true">→</span></button>
             </div>
           </form>
-        </section>
+          </section>
 
-        <div class="content-grid">
           <section class="panel">
-            <div class="panel-heading"><div><h2>Workflow runs</h2><p id="runs-caption" class="panel-hint">All projects</p></div><button id="refresh" class="button ghost" type="button">Refresh</button></div>
+            <div class="panel-heading"><div><h2>Workflow status</h2><p id="runs-caption" class="panel-hint">All projects · select a workflow to open its details.</p></div><button id="refresh" class="button ghost" type="button">Refresh</button></div>
             <div id="run-list-main"><div class="empty">Loading runs…</div></div>
           </section>
-          <section class="panel">
-            <div class="panel-heading"><div><h2>Run details</h2><p class="panel-hint">Select a run to inspect its result and events.</p></div></div>
-            <div id="run-detail" class="detail-placeholder">Choose a workflow run to see its status, agent output, and lifecycle events.</div>
-          </section>
         </div>
+
+        <section id="workflow-view" class="hidden workflow-page" aria-live="polite">
+          <section class="panel">
+            <div class="panel-heading">
+              <div><h2>Workflow details</h2><p class="panel-hint">Architecture, implementation plan, generated code, and review.</p></div>
+            </div>
+            <div id="run-detail" class="detail-placeholder">Loading workflow details…</div>
+          </section>
+        </section>
       </main>
     </div>
     <div id="notice" class="notice hidden" role="status"></div>
     <script>
       (() => {
-        const state = { projects: [], runs: [], projectId: "", runId: "", runListSnapshot: "", detailSnapshot: "", noticeTimer: null, busy: false };
+        const state = { projects: [], runs: [], projectId: "", runId: "", workflowTabs: [], runListSnapshot: "", detailSnapshot: "", noticeTimer: null, busy: false };
         const $ = (id) => document.getElementById(id);
 
         async function api(path, options = {}) {
@@ -238,7 +251,8 @@
           const message = healthy ? `API connected${llm}` : "API unavailable";
           $("health").classList.toggle("error", !healthy);
           $("health").innerHTML = `<span class="dot"></span><span>${message}</span>`;
-          $("sidebar-health").innerHTML = `<span class="dot"></span><span>${healthy ? `API connected${status?.llm_enabled ? " · OpenAI" : ""}` : message}</span>`;
+          const provider = status?.llm_provider ? ` · ${status.llm_provider}` : "";
+          $("sidebar-health").innerHTML = `<span class="dot"></span><span>${healthy ? `API connected${status?.llm_enabled ? provider : ""}` : message}</span>`;
           $("sidebar-health").style.color = healthy ? "" : "var(--red)";
           $("sidebar-health").querySelector(".dot").style.background = healthy ? "" : "var(--red)";
         }
@@ -266,18 +280,38 @@
           $("metric-pending").textContent = runs.filter((run) => ["queued", "running", "waiting_approval"].includes(run.status)).length;
           const markup = runs.length ? runs.map((run) => {
             const requestText = run.result?.user_request || run.result?.task || run.request?.task || run.error || "Workflow run";
-            return `<button type="button" class="run-row ${state.runId === run.run_id ? "active" : ""}" data-run="${escapeHtml(run.run_id)}">
+            return `<a class="run-row" href="#workflow/${encodeURIComponent(run.run_id)}">
               <span style="min-width:0"><span class="run-title">${escapeHtml(requestText)}</span><span class="run-date">${escapeHtml(date(run.updated_at || run.created_at) || run.run_id.slice(0, 8))}</span></span>
               <span class="badge ${escapeHtml(run.status)}">${escapeHtml(run.status.replaceAll("_", " "))}</span>
-            </button>`;
+            </a>`;
           }).join("") : '<div class="empty">No runs yet. Start a workflow above.</div>';
           const snapshot = JSON.stringify([runs, state.runId, state.projectId]);
           if (snapshot !== state.runListSnapshot) {
             state.runListSnapshot = snapshot;
             $("runs").innerHTML = markup;
             $("run-list-main").innerHTML = markup;
-            document.querySelectorAll("[data-run]").forEach((button) => button.addEventListener("click", () => selectRun(button.dataset.run)));
           }
+          renderWorkflowTabs();
+        }
+
+        function renderWorkflowTabs() {
+          const workspaceActive = !state.runId;
+          const workflowTabs = state.workflowTabs.map((tab) => {
+            const run = state.runs.find((item) => item.run_id === tab.run_id);
+            const title = run?.result?.user_request || run?.request?.task || tab.title || `Workflow ${tab.run_id.slice(0, 8)}`;
+            const status = run?.status || tab.status || "loading";
+            return `<div class="app-tab-item ${state.runId === tab.run_id ? "active" : ""}">
+              <button type="button" class="app-tab" role="tab" aria-selected="${state.runId === tab.run_id}"
+                title="${escapeHtml(title)} · ${escapeHtml(status)}" data-workflow-tab="${escapeHtml(tab.run_id)}">
+                ${escapeHtml(title)}
+              </button>
+              <button type="button" class="app-tab-close" aria-label="Close ${escapeHtml(title)} tab"
+                data-close-workflow-tab="${escapeHtml(tab.run_id)}">×</button>
+            </div>`;
+          }).join("");
+          $("app-tabs").innerHTML = `<div class="app-tab-item ${workspaceActive ? "active" : ""}">
+            <button type="button" class="app-tab" role="tab" aria-selected="${workspaceActive}" data-workspace-tab>Engineering workspace</button>
+          </div>${workflowTabs}`;
         }
 
         function renderDiagram(architecture) {
@@ -352,17 +386,22 @@
         function renderCodeChange(change) {
           if (!change) return '<div class="empty">No code proposal was produced.</div>';
           const files = change.file_contents && typeof change.file_contents === "object" ? change.file_contents : {};
-          const fileCards = Object.entries(files).map(([path, content]) => `<details class="file-proposal">
+          const entries = Object.entries(files);
+          const fileCards = entries.map(([path, content], index) => `<details class="file-proposal" ${index === 0 ? "open" : ""}>
             <summary>${escapeHtml(path)}</summary><pre>${escapeHtml(content)}</pre></details>`).join("");
           const plan = Array.isArray(change.changes) && change.changes.length
             ? `<ul>${change.changes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "";
-          return `${fileCards || '<div class="empty">This run did not generate source file contents. Enable OpenAI to request a code proposal.</div>'}
+          return `${entries.length ? `<p class="detail-meta">${entries.length} generated file${entries.length === 1 ? "" : "s"} · first file expanded below</p>` : ""}
+            ${fileCards || '<div class="empty">No source file contents were generated for this run.</div>'}
             ${plan ? `<div class="detail-meta">Change summary</div>${plan}` : ""}`;
         }
 
         function renderDetail(run, events) {
           const container = $("run-detail");
           const result = run.result || {};
+          const title = result.user_request || run.request?.task || `Workflow ${run.run_id.slice(0, 8)}`;
+          $("page-title").textContent = title;
+          $("page-subtitle").textContent = `${run.status.replaceAll("_", " ")} · ${run.request?.repository || "Repository unavailable"}`;
           const architecture = result.architecture || {};
           const codeChange = result.code_change || {};
           const testReport = result.test_report || null;
@@ -376,9 +415,13 @@
             <p class="detail-meta">Run ID: ${escapeHtml(run.run_id)}${run.project_id ? `<br>Project: ${escapeHtml(run.project_id)}` : ""}</p>
             ${run.error ? `<div class="detail-section"><h3>Error</h3><pre>${escapeHtml(run.error)}</pre></div>` : ""}
             ${canApprove ? '<div class="approval"><button id="approve" class="button" type="button">Approve and continue</button><button id="deny" class="button danger" type="button">Deny approval</button></div>' : ""}
-            ${architecture.summary ? `<div class="detail-section"><h3>Architecture</h3><p class="detail-meta">${escapeHtml(architecture.summary)}</p>${renderDiagram(architecture)}</div>` : ""}
-            ${result.implementation_plan?.length ? `<div class="detail-section"><h3>Implementation plan</h3><ul>${result.implementation_plan.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ul></div>` : ""}
-            ${codeChange.file_contents || codeChange.changes ? `<div class="detail-section"><h3>Proposed code</h3>${renderCodeChange(codeChange)}</div>` : ""}
+            <div class="detail-section"><h3>Architecture</h3>
+              ${architecture.summary ? `<p class="detail-meta">${escapeHtml(architecture.summary)}</p>` : ""}
+              ${renderDiagram(architecture)}
+              ${architecture.components?.length ? `<p class="detail-meta">Components: ${architecture.components.map(escapeHtml).join(" · ")}</p>` : ""}
+            </div>
+            ${(result.implementation_plan?.length || architecture.implementation_plan?.length) ? `<div class="detail-section"><h3>Implementation plan</h3><ul>${(result.implementation_plan || architecture.implementation_plan).map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ul></div>` : ""}
+            <div class="detail-section"><h3>Generated code</h3>${renderCodeChange(codeChange)}</div>
             ${testReport ? `<div class="detail-section"><h3>Validation</h3><span class="badge ${testReport.passed ? "completed" : "failed"}">${testReport.passed ? "passed" : "failed"}</span><p class="detail-meta">${escapeHtml(testReport.command || "")}${testReport.output ? `<br>${escapeHtml(testReport.output)}` : ""}</p>${testReport.failures?.length ? `<ul>${testReport.failures.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}</div>` : ""}
             ${reviewReport ? `<div class="detail-section"><h3>Code review</h3>${renderReview(reviewReport)}</div>` : ""}
             <details class="raw-result"><summary>Raw workflow data</summary><pre>${escapeHtml(JSON.stringify(result, null, 2) || "Waiting for workflow result…")}</pre></details>
@@ -409,9 +452,60 @@
           state.runs = await api(path);
           renderRuns();
           if (state.runId) {
-            const selected = state.runs.find((run) => run.run_id === state.runId);
-            if (selected) await loadRunDetail(selected.run_id, false);
-            else { state.runId = ""; $("run-detail").className = "detail-placeholder"; $("run-detail").textContent = "Choose a workflow run to see its status, agent output, and lifecycle events."; }
+            await loadRunDetail(state.runId, false);
+          }
+        }
+
+        function showWorkspace(updateHistory) {
+          state.runId = "";
+          state.detailSnapshot = "";
+          $("workspace-view").classList.remove("hidden");
+          $("workflow-view").classList.add("hidden");
+          $("page-title").textContent = "Engineering workspace";
+          $("page-subtitle").textContent = "Plan, implement, test, and review repository tasks.";
+          if (updateHistory && window.location.hash) {
+            history.pushState({}, "", `${window.location.pathname}${window.location.search}`);
+          }
+          renderRuns();
+        }
+
+        async function showWorkflow(runId, updateHistory) {
+          state.runId = runId;
+          state.detailSnapshot = "";
+          const listing = state.runs.find((run) => run.run_id === runId);
+          if (!state.workflowTabs.some((tab) => tab.run_id === runId)) {
+            state.workflowTabs.push({
+              run_id: runId,
+              title: listing?.result?.user_request || listing?.request?.task || "",
+              status: listing?.status || "loading",
+            });
+          }
+          renderWorkflowTabs();
+          $("workspace-view").classList.add("hidden");
+          $("workflow-view").classList.remove("hidden");
+          $("run-detail").className = "detail-placeholder";
+          $("run-detail").textContent = "Loading workflow details…";
+          const task = listing?.result?.user_request || listing?.request?.task;
+          $("page-title").textContent = task || `Workflow ${runId.slice(0, 8)}`;
+          $("page-subtitle").textContent = `${listing?.status?.replaceAll("_", " ") || "loading"} · Architecture and generated code`;
+          if (updateHistory) {
+            history.pushState({}, "", `${window.location.pathname}${window.location.search}#workflow/${encodeURIComponent(runId)}`);
+          }
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          await loadRunDetail(runId);
+        }
+
+        async function syncRoute() {
+          const match = window.location.hash.match(/^#workflow\/(.+)$/);
+          if (!match) {
+            showWorkspace(false);
+            return;
+          }
+          try {
+            await showWorkflow(decodeURIComponent(match[1]), false);
+          } catch (error) {
+            notify(`Could not load workflow: ${error.message}`, true);
+            showWorkspace(false);
           }
         }
 
@@ -424,29 +518,32 @@
             api(`/api/runs/${encodeURIComponent(runId)}/events`),
           ]);
           state.runId = runId;
+          const workflowTab = state.workflowTabs.find((tab) => tab.run_id === runId);
+          if (workflowTab) {
+            workflowTab.title = run.result?.user_request || run.request?.task || workflowTab.title;
+            workflowTab.status = run.status;
+          }
           renderRuns();
           const snapshot = JSON.stringify([run, events]);
           if (announce || snapshot !== state.detailSnapshot) {
             state.detailSnapshot = snapshot;
             renderDetail(run, events);
           }
-          if (announce) $("run-detail").scrollIntoView({ behavior: "smooth", block: "nearest" });
+          if (announce) window.scrollTo({ top: 0, behavior: "smooth" });
         }
 
         async function selectRun(runId) {
-          try { await loadRunDetail(runId); }
+          try { await showWorkflow(runId, true); }
           catch (error) { notify(`Could not load run: ${error.message}`, true); }
         }
 
         async function chooseProject(projectId) {
+          showWorkspace(true);
           state.projectId = state.projectId === projectId ? "" : projectId;
-          state.runId = "";
           $("project-select").value = state.projectId;
           const project = state.projects.find((item) => item.project_id === state.projectId);
           $("repository").value = project?.repository || "";
           $("repository").disabled = Boolean(project);
-          $("run-detail").className = "detail-placeholder";
-          $("run-detail").textContent = "Choose a workflow run to see its status, agent output, and lifecycle events.";
           renderProjects();
           try { await refreshRuns(); }
           catch (error) { notify(`Could not load runs: ${error.message}`, true); }
@@ -463,6 +560,34 @@
         }
 
         $("project-select").addEventListener("change", () => chooseProject($("project-select").value));
+        $("app-tabs").addEventListener("click", (event) => {
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          const workspaceTab = target.closest("[data-workspace-tab]");
+          if (workspaceTab) {
+            showWorkspace(true);
+            return;
+          }
+          const closeTab = target.closest("[data-close-workflow-tab]");
+          if (closeTab) {
+            const runId = closeTab.getAttribute("data-close-workflow-tab");
+            state.workflowTabs = state.workflowTabs.filter((tab) => tab.run_id !== runId);
+            if (state.runId === runId) {
+              showWorkspace(true);
+            } else {
+              renderWorkflowTabs();
+            }
+            return;
+          }
+          const workflowTab = target.closest("[data-workflow-tab]");
+          if (workflowTab) {
+            const runId = workflowTab.getAttribute("data-workflow-tab");
+            if (runId) selectRun(runId);
+          }
+        });
+        window.addEventListener("hashchange", () => {
+          syncRoute().catch((error) => notify(`Could not navigate to workflow: ${error.message}`, true));
+        });
         $("new-project-toggle").addEventListener("click", () => $("project-form").classList.toggle("hidden"));
         $("refresh").addEventListener("click", async () => {
           try { await Promise.all([refreshProjects(), refreshRuns(), refreshHealth()]); notify("Workspace refreshed."); }
@@ -515,6 +640,7 @@
           try {
             await Promise.all([refreshHealth(), refreshProjects()]);
             await refreshRuns();
+            await syncRoute();
           } catch (error) { notify(`Could not load workspace: ${error.message}`, true); }
         }
 

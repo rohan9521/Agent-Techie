@@ -8,9 +8,12 @@ class Settings(BaseSettings):
     environment: str = "development"
     api_prefix: str = "/api"
     log_level: str = "INFO"
-    llm_provider: str | None = None
-    model_name: str = "gpt-4o-mini"
+    llm_provider: str | None = "ollama"
+    model_name: str = "qwen2.5-coder"
     openai_api_key: SecretStr | None = None
+    gemini_api_key: SecretStr | None = None
+    anthropic_api_key: SecretStr | None = None
+    ollama_base_url: str = "http://localhost:11434"
     langsmith_tracing: bool = False
     langsmith_endpoint: str = "https://api.smith.langchain.com"
     langsmith_api_key: str | None = None
